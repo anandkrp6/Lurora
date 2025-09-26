@@ -9,10 +9,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.bytecoder.lurora.R
@@ -93,11 +95,12 @@ fun SplashScreen(
     ) {
         // Animated Logo
         Image(
-            painter = painterResource(id = R.mipmap.ic_launcher),
+            painter = painterResource(id = R.drawable.logo),
             contentDescription = "Lurora Logo",
             modifier = Modifier
                 .size(120.dp)
                 .scale(scaleAnimation.value)
+                .clip(CircleShape) // Make logo circular
                 .alpha(alphaAnimation.value)
         )
     }
