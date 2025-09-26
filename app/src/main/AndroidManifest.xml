@@ -68,8 +68,42 @@
         <!-- Main Activity -->
         <activity
             android:name=".MainActivity"
-            android:exported="false">
+            android:exported="false"
+            android:launchMode="singleTop">
         </activity>
+        
+        <!-- Media Service -->
+        <service
+            android:name=".backend.services.LuroraMediaService"
+            android:exported="false"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
+        
+        <!-- Media Action Receiver -->
+        <receiver
+            android:name=".backend.services.MediaActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.bytecoder.lurora.ACTION_PLAY_PAUSE" />
+                <action android:name="com.bytecoder.lurora.ACTION_PREVIOUS" />
+                <action android:name="com.bytecoder.lurora.ACTION_NEXT" />
+                <action android:name="com.bytecoder.lurora.ACTION_STOP" />
+            </intent-filter>
+        </receiver>
+        
+        <!-- File provider for sharing media -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>

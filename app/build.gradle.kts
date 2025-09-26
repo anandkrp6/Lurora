@@ -68,11 +68,26 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)
 
-    // Media3 (ExoPlayer)
+    // Media3 (ExoPlayer) - Core components
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.media3.session)
     implementation(libs.androidx.media3.common)
+    implementation(libs.androidx.media3.datasource)
+    implementation(libs.androidx.media3.extractor)
+    implementation(libs.androidx.media3.decoder)
+    
+    // Media3 - Additional formats and network support
+    implementation(libs.androidx.media3.exoplayer.hls)
+    implementation(libs.androidx.media3.exoplayer.dash)
+    implementation(libs.androidx.media3.datasource.okhttp)
+    
+    // OkHttp (required by Media3 datasource)
+    implementation(libs.okhttp)
+    
+    // Audio processing alternatives - using modern libraries
+    // For audio visualizer - we'll implement custom visualizer using Media3's built-in capabilities
+    // For equalizer controls - we'll use custom Compose UI components
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.core)

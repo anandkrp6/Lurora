@@ -130,6 +130,11 @@ fun MainScreen(
                     )
                 }
             }
+            
+            // Music Player Overlay - Always available
+            MusicPlayerScreen(
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 
