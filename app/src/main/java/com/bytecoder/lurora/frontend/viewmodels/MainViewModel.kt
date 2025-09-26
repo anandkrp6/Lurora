@@ -70,8 +70,8 @@ class MainViewModel @Inject constructor(
         _navigationState.value = _navigationState.value.copy(currentOnlineSection = section)
     }
 
-    fun selectMoreSection(section: MoreSection) {
-        _navigationState.value = _navigationState.value.copy(currentMoreSection = section)
+    fun selectMoreTab(moreTab: MoreTab) {
+        _navigationState.value = _navigationState.value.copy(currentMoreTab = moreTab)
     }
 
     // Get current section based on active tab
@@ -80,7 +80,7 @@ class MainViewModel @Inject constructor(
             MainTab.VIDEO -> _navigationState.value.currentVideoSection.title
             MainTab.MUSIC -> _navigationState.value.currentMusicSection.title
             MainTab.ONLINE -> _navigationState.value.currentOnlineSection.title
-            MainTab.MORE -> _navigationState.value.currentMoreSection.title
+            MainTab.MORE -> _navigationState.value.currentMoreTab.title
         }
     }
 
@@ -219,10 +219,10 @@ class MainViewModel @Inject constructor(
                 _navigationState.value = _navigationState.value.copy(currentOnlineSection = sections[nextIndex])
             }
             MainTab.MORE -> {
-                val sections = MoreSection.values()
-                val currentIndex = sections.indexOf(_navigationState.value.currentMoreSection)
-                val nextIndex = (currentIndex + 1) % sections.size
-                selectMoreSection(sections[nextIndex])
+                val tabs = MoreTab.values()
+                val currentIndex = tabs.indexOf(_navigationState.value.currentMoreTab)
+                val nextIndex = (currentIndex + 1) % tabs.size
+                selectMoreTab(tabs[nextIndex])
             }
         }
     }
@@ -248,10 +248,10 @@ class MainViewModel @Inject constructor(
                 _navigationState.value = _navigationState.value.copy(currentOnlineSection = sections[previousIndex])
             }
             MainTab.MORE -> {
-                val sections = MoreSection.values()
-                val currentIndex = sections.indexOf(_navigationState.value.currentMoreSection)
-                val previousIndex = if (currentIndex == 0) sections.size - 1 else currentIndex - 1
-                selectMoreSection(sections[previousIndex])
+                val tabs = MoreTab.values()
+                val currentIndex = tabs.indexOf(_navigationState.value.currentMoreTab)
+                val previousIndex = if (currentIndex == 0) tabs.size - 1 else currentIndex - 1
+                selectMoreTab(tabs[previousIndex])
             }
         }
     }
@@ -307,5 +307,39 @@ class MainViewModel @Inject constructor(
 
     fun clearNavigationStack() {
         _navigationState.value = _navigationState.value.copy(navigationStack = emptyList())
+    }
+
+    // MoreTab Feature Support
+    fun getCurrentMoreTabFeatures(): Set<String> {
+        return NavigationHelper.getMoreTabFeatures(_navigationState.value.currentMoreTab)
+    }
+
+    fun isMoreTabFeatureEnabled(feature: String): Boolean {
+        return getCurrentMoreTabFeatures().contains(feature)
+    }
+
+    // Individual MoreTab feature handlers
+    fun refreshMoreTabContent() {
+        val currentTab = _navigationState.value.currentMoreTab
+        if (currentTab.hasRefresh) {
+            // Refresh logic for the specific tab
+            // Implementation will be added when creating individual tab screens
+        }
+    }
+
+    fun exportMoreTabData() {
+        val currentTab = _navigationState.value.currentMoreTab
+        if (currentTab.hasExport) {
+            // Export logic for the specific tab
+            // Implementation will be added when creating individual tab screens
+        }
+    }
+
+    fun openMoreTabSettings() {
+        val currentTab = _navigationState.value.currentMoreTab
+        if (currentTab.hasSettings) {
+            // Settings logic for the specific tab
+            // Implementation will be added when creating individual tab screens
+        }
     }
 }

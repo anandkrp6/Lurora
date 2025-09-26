@@ -25,7 +25,6 @@ import com.bytecoder.lurora.frontend.navigation.*
 @Composable
 fun LuroraTopBar(
     currentTab: MainTab,
-    currentSection: String = "",
     onSearchClick: () -> Unit = {},
     onSortClick: () -> Unit = {},
     onFilterClick: () -> Unit = {},
@@ -312,8 +311,7 @@ fun ViewOptionsDialog(
 fun LuroraTopBarPreview() {
     MaterialTheme {
         LuroraTopBar(
-            currentTab = MainTab.VIDEO,
-            currentSection = "Library"
+            currentTab = MainTab.VIDEO
         )
     }
 }

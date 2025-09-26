@@ -39,7 +39,7 @@ fun MainScreen(
             MainTab.VIDEO -> navigationState.currentVideoSection == VideoSection.LIBRARY
             MainTab.MUSIC -> navigationState.currentMusicSection == MusicSection.LIBRARY
             MainTab.ONLINE -> navigationState.currentOnlineSection == OnlineSection.BROWSE
-            MainTab.MORE -> navigationState.currentMoreSection == MoreSection.HISTORY
+            MainTab.MORE -> navigationState.currentMoreTab == MoreTab.HISTORY
         }
         
         if (!isOnDefaultSection) {
@@ -48,7 +48,7 @@ fun MainScreen(
                 MainTab.VIDEO -> viewModel.selectVideoSection(VideoSection.LIBRARY)
                 MainTab.MUSIC -> viewModel.selectMusicSection(MusicSection.LIBRARY)
                 MainTab.ONLINE -> viewModel.selectOnlineSection(OnlineSection.BROWSE)
-                MainTab.MORE -> viewModel.selectMoreSection(MoreSection.HISTORY)
+                MainTab.MORE -> viewModel.selectMoreTab(MoreTab.HISTORY)
             }
         } else {
             // Exit app
@@ -58,10 +58,8 @@ fun MainScreen(
 
     Scaffold(
         topBar = {
-            val currentSection = viewModel.getCurrentSection()
             LuroraTopBar(
                 currentTab = navigationState.currentTab,
-                currentSection = currentSection,
                 onSearchClick = { viewModel.showSearchDialog() },
                 onSortClick = { viewModel.showSortDialog() },
                 onFilterClick = { viewModel.showFilterDialog() },
@@ -127,8 +125,8 @@ fun MainScreen(
                 }
                 MainTab.MORE -> {
                     MoreTabContent(
-                        currentSection = navigationState.currentMoreSection,
-                        onSectionChange = { viewModel.selectMoreSection(it) }
+                        currentMoreTab = navigationState.currentMoreTab,
+                        onMoreTabChange = { viewModel.selectMoreTab(it) }
                     )
                 }
             }

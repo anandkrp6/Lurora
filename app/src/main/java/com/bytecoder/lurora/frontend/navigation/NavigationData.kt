@@ -35,15 +35,91 @@ enum class OnlineSection(val title: String, val route: String) {
     FAVORITES("Favorites", "favorites")
 }
 
-enum class MoreSection(val title: String, val route: String) {
-    HISTORY("History", "history"),
-    DOWNLOADS("Downloads", "downloads"),
-    PERMISSIONS("Permissions", "permissions"),
-    FILE_EXPLORER("File Explorer", "file_explorer"),
-    SETTINGS("Settings", "settings"),
-    FEEDBACK("Feedback", "feedback"),
-    ABOUT("About", "about"),
-    TIPS("Tips", "tips")
+// MORE tabs - These are individual tabs within the More section
+// Each tab can have its own features, but simplified compared to main tabs
+enum class MoreTab(
+    val title: String, 
+    val route: String,
+    val icon: ImageVector,
+    val description: String,
+    // Tab-specific capabilities
+    val hasSearch: Boolean = false,
+    val hasSort: Boolean = false,
+    val hasFilter: Boolean = false,
+    val hasViewOptions: Boolean = false,
+    val hasRefresh: Boolean = false,
+    val hasExport: Boolean = false,
+    val hasSettings: Boolean = false
+) {
+    HISTORY(
+        title = "History", 
+        route = "history", 
+        icon = Icons.Default.History,
+        description = "View your watch and play history",
+        hasSearch = true,
+        hasSort = true,
+        hasFilter = true,
+        hasViewOptions = true,
+        hasExport = true
+    ),
+    DOWNLOADS(
+        title = "Downloads", 
+        route = "downloads", 
+        icon = Icons.Default.Download,
+        description = "Manage your downloaded files",
+        hasSearch = true,
+        hasSort = true,
+        hasFilter = true,
+        hasViewOptions = true,
+        hasRefresh = true
+    ),
+    PERMISSIONS(
+        title = "Permissions", 
+        route = "permissions", 
+        icon = Icons.Default.Security,
+        description = "App permissions and access",
+        hasRefresh = true,
+        hasSettings = true
+    ),
+    FILE_EXPLORER(
+        title = "File Explorer", 
+        route = "file_explorer", 
+        icon = Icons.Default.Folder,
+        description = "Browse and manage files",
+        hasSearch = true,
+        hasSort = true,
+        hasFilter = true,
+        hasViewOptions = true,
+        hasRefresh = true
+    ),
+    SETTINGS(
+        title = "Settings", 
+        route = "settings", 
+        icon = Icons.Default.Settings,
+        description = "App preferences and configuration",
+        hasSearch = true,
+        hasExport = true
+    ),
+    FEEDBACK(
+        title = "Feedback", 
+        route = "feedback", 
+        icon = Icons.Default.Feedback,
+        description = "Send feedback and suggestions",
+        hasRefresh = true
+    ),
+    ABOUT(
+        title = "About", 
+        route = "about", 
+        icon = Icons.Default.Info,
+        description = "About Lurora and app information"
+    ),
+    TIPS(
+        title = "Tips", 
+        route = "tips", 
+        icon = Icons.Default.Lightbulb,
+        description = "Tips and tricks for using the app",
+        hasRefresh = true
+    )
 }
 
 // Sort options for different contexts
@@ -83,7 +159,7 @@ data class NavigationState(
     val currentVideoSection: VideoSection = VideoSection.LIBRARY,
     val currentMusicSection: MusicSection = MusicSection.LIBRARY,
     val currentOnlineSection: OnlineSection = OnlineSection.BROWSE,
-    val currentMoreSection: MoreSection = MoreSection.HISTORY, // Renamed from currentOptionsSection
+    val currentMoreTab: MoreTab = MoreTab.HISTORY, // Changed to reflect tab nature
     
     // Navigation Stack for advanced navigation
     val navigationStack: List<NavigationScreen> = listOf(NavigationScreen.MainTab(com.bytecoder.lurora.frontend.navigation.MainTab.VIDEO)),
@@ -103,9 +179,9 @@ data class NavigationState(
 // Navigation Screen types for stack management
 sealed class NavigationScreen(open val route: String, open val title: String) {
     data class MainTab(val tab: com.bytecoder.lurora.frontend.navigation.MainTab) : NavigationScreen(tab.route, tab.title)
-    data class MorePage(val section: MoreSection, val parentTab: com.bytecoder.lurora.frontend.navigation.MainTab = com.bytecoder.lurora.frontend.navigation.MainTab.MORE) : NavigationScreen(
-        "${parentTab.route}/${section.route}", 
-        section.title
+    data class MoreTabPage(val moreTab: MoreTab, val parentTab: com.bytecoder.lurora.frontend.navigation.MainTab = com.bytecoder.lurora.frontend.navigation.MainTab.MORE) : NavigationScreen(
+        "${parentTab.route}/${moreTab.route}", 
+        moreTab.title
     )
     data class DeepPage(override val route: String, override val title: String, val parent: NavigationScreen) : NavigationScreen(route, title)
 }
@@ -134,14 +210,14 @@ object DeepLinkPatterns {
         if (!url.startsWith(BASE_SCHEME)) return null
         
         return when {
-            url == DOWNLOADS -> NavigationScreen.MorePage(MoreSection.DOWNLOADS)
-            url == PERMISSIONS -> NavigationScreen.MorePage(MoreSection.PERMISSIONS)
-            url == ABOUT -> NavigationScreen.MorePage(MoreSection.ABOUT)
-            url == HISTORY -> NavigationScreen.MorePage(MoreSection.HISTORY)
-            url == FILE_EXPLORER -> NavigationScreen.MorePage(MoreSection.FILE_EXPLORER)
-            url == FEEDBACK -> NavigationScreen.MorePage(MoreSection.FEEDBACK)
-            url == TIPS -> NavigationScreen.MorePage(MoreSection.TIPS)
-            url.startsWith("$BASE_SCHEME://settings") -> NavigationScreen.MorePage(MoreSection.SETTINGS)
+            url == DOWNLOADS -> NavigationScreen.MoreTabPage(MoreTab.DOWNLOADS)
+            url == PERMISSIONS -> NavigationScreen.MoreTabPage(MoreTab.PERMISSIONS)
+            url == ABOUT -> NavigationScreen.MoreTabPage(MoreTab.ABOUT)
+            url == HISTORY -> NavigationScreen.MoreTabPage(MoreTab.HISTORY)
+            url == FILE_EXPLORER -> NavigationScreen.MoreTabPage(MoreTab.FILE_EXPLORER)
+            url == FEEDBACK -> NavigationScreen.MoreTabPage(MoreTab.FEEDBACK)
+            url == TIPS -> NavigationScreen.MoreTabPage(MoreTab.TIPS)
+            url.startsWith("$BASE_SCHEME://settings") -> NavigationScreen.MoreTabPage(MoreTab.SETTINGS)
             else -> null
         }
     }
@@ -154,7 +230,7 @@ object NavigationHelper {
             MainTab.VIDEO -> VideoSection.values().map { it.title }
             MainTab.MUSIC -> MusicSection.values().map { it.title }
             MainTab.ONLINE -> OnlineSection.values().map { it.title }
-            MainTab.MORE -> MoreSection.values().map { it.title } // Updated from OPTIONS to MORE
+            MainTab.MORE -> MoreTab.values().map { it.title } // Updated to use MoreTab
         }
     }
     
@@ -163,7 +239,20 @@ object NavigationHelper {
             MainTab.VIDEO -> VideoSection.LIBRARY.title
             MainTab.MUSIC -> MusicSection.LIBRARY.title
             MainTab.ONLINE -> OnlineSection.BROWSE.title
-            MainTab.MORE -> MoreSection.HISTORY.title // Updated from OPTIONS to MORE
+            MainTab.MORE -> MoreTab.HISTORY.title // Updated to use MoreTab
+        }
+    }
+    
+    // Get available features for a specific MoreTab
+    fun getMoreTabFeatures(moreTab: MoreTab): Set<String> {
+        return buildSet {
+            if (moreTab.hasSearch) add("search")
+            if (moreTab.hasSort) add("sort")
+            if (moreTab.hasFilter) add("filter")
+            if (moreTab.hasViewOptions) add("viewOptions")
+            if (moreTab.hasRefresh) add("refresh")
+            if (moreTab.hasExport) add("export")
+            if (moreTab.hasSettings) add("settings")
         }
     }
     
@@ -222,9 +311,9 @@ object NavigationHelper {
                 navigationStack = listOf(targetScreen), // Reset stack for main tabs
                 breadcrumbs = emptyList()
             )
-            is NavigationScreen.MorePage -> currentState.copy(
+            is NavigationScreen.MoreTabPage -> currentState.copy(
                 currentTab = com.bytecoder.lurora.frontend.navigation.MainTab.MORE,
-                currentMoreSection = targetScreen.section,
+                currentMoreTab = targetScreen.moreTab,
                 navigationStack = newStack,
                 breadcrumbs = newBreadcrumbs
             )
