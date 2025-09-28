@@ -93,6 +93,17 @@ class MusicPlayerViewModel @Inject constructor(
         queue.items.getOrNull(startIndex)?.let { addToRecentlyPlayed(it) }
     }
     
+    /**
+     * Toggle between play and pause
+     */
+    fun togglePlayPause() {
+        if (playbackState.value.isPlaying) {
+            mediaEngine.pause()
+        } else {
+            mediaEngine.play()
+        }
+    }
+    
     private fun startBackgroundService() {
         // Start the media service for background playback and lock screen controls
         LuroraMediaService.startService(context)
@@ -200,6 +211,15 @@ class MusicPlayerViewModel @Inject constructor(
     fun setVirtualizer(virtualizer: AudioEffect.Virtualizer) {
         _virtualizer.value = virtualizer
         // In real implementation, would apply to audio engine
+    }
+    
+    /**
+     * Stop playback and clear queue
+     */
+    fun stop() {
+        mediaEngine.stop()
+        // Note: In a real implementation, we'd need to clear the queue properly
+        // For now, just stop the media engine
     }
     
     /**

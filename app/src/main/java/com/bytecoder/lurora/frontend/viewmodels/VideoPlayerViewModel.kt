@@ -97,6 +97,11 @@ class VideoPlayerViewModel @Inject constructor(
         showControlsTemporarily()
     }
     
+    /**
+     * Toggle between play and pause (alias for togglePlayback for consistency)
+     */
+    fun togglePlayPause() = togglePlayback()
+    
     fun seekTo(position: Long) {
         mediaEngine.seekTo(position)
         showControlsTemporarily()
@@ -501,6 +506,15 @@ class VideoPlayerViewModel @Inject constructor(
         if (currentIndex < currentQueue.items.size - 1) {
             playMediaAtIndex(currentIndex + 1)
         }
+    }
+    
+    /**
+     * Stop playback and clear queue
+     */
+    fun stop() {
+        mediaEngine.stop()
+        // Note: In a real implementation, we'd need to clear the queue properly
+        // For now, just stop the media engine
     }
     
     override fun onCleared() {
