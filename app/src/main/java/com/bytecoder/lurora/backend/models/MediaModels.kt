@@ -111,29 +111,48 @@ data class Playlist(
 /**
  * Audio effect configuration
  */
-data class AudioEffect(
-    val type: Type,
-    val enabled: Boolean = false,
-    val strength: Float = 0.5f,
-    val parameters: Map<String, Float> = emptyMap()
-) {
-    enum class Type {
-        BASS_BOOST,
-        VIRTUALIZER, 
-        REVERB,
-        ECHO,
-        PITCH_SHIFT,
-        SPEED_CHANGE,
-        NOISE_REDUCTION,
-        VOICE_ENHANCEMENT
-    }
+sealed class AudioEffect {
+    data class BassBoost(
+        val enabled: Boolean = false,
+        val strength: Float = 0f
+    ) : AudioEffect()
     
-    val hasStrengthControl: Boolean
-        get() = when (type) {
-            Type.BASS_BOOST, Type.VIRTUALIZER, Type.REVERB, 
-            Type.ECHO, Type.NOISE_REDUCTION, Type.VOICE_ENHANCEMENT -> true
-            Type.PITCH_SHIFT, Type.SPEED_CHANGE -> false
-        }
+    data class Virtualizer(
+        val enabled: Boolean = false,
+        val strength: Float = 0f
+    ) : AudioEffect()
+    
+    data class Reverb(
+        val enabled: Boolean = false,
+        val roomSize: Float = 0.5f,
+        val damping: Float = 0.5f
+    ) : AudioEffect()
+    
+    data class Echo(
+        val enabled: Boolean = false,
+        val delay: Float = 0.5f,
+        val decay: Float = 0.5f
+    ) : AudioEffect()
+    
+    data class PitchShift(
+        val enabled: Boolean = false,
+        val pitch: Float = 1.0f
+    ) : AudioEffect()
+    
+    data class SpeedChange(
+        val enabled: Boolean = false,
+        val speed: Float = 1.0f
+    ) : AudioEffect()
+    
+    data class NoiseReduction(
+        val enabled: Boolean = false,
+        val strength: Float = 0.5f
+    ) : AudioEffect()
+    
+    data class VoiceEnhancement(
+        val enabled: Boolean = false,
+        val strength: Float = 0.5f
+    ) : AudioEffect()
 }
 
 /**
@@ -205,8 +224,9 @@ data class SubtitleTrack(
     val id: String,
     val title: String,
     val language: String? = null,
-    val uri: Uri? = null,
-    val isSelected: Boolean = false
+    val uri: String? = null,
+    val isSelected: Boolean = false,
+    val isExternal: Boolean = false
 )
 
 data class Chapter(

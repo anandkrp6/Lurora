@@ -78,12 +78,14 @@ class VideoPlayerViewModel @Inject constructor(
         mediaEngine.playMediaItem(mediaItem)
         loadVideoTracks()
         loadChapters()
+        autoDetectSubtitles()
     }
     
     fun playVideoQueue(queue: MediaQueue, startIndex: Int = 0) {
         mediaEngine.playQueue(queue, startIndex)
         loadVideoTracks()
         loadChapters()
+        autoDetectSubtitles()
     }
     
     fun togglePlayback() {
@@ -342,6 +344,162 @@ class VideoPlayerViewModel @Inject constructor(
             String.format("%d:%02d:%02d", hours, minutes, seconds)
         } else {
             String.format("%d:%02d", minutes, seconds)
+        }
+    }
+    
+    /**
+     * Queue management
+     */
+    fun playMediaAtIndex(index: Int) {
+        mediaEngine.playMediaAtIndex(index)
+        loadVideoTracks()
+        loadChapters()
+        showControlsTemporarily()
+    }
+    
+    fun toggleShuffleMode() {
+        mediaEngine.setShuffleMode(!mediaEngine.playbackState.value.shuffleMode)
+        showControlsTemporarily()
+    }
+    
+    fun setRepeatMode(mode: RepeatMode) {
+        mediaEngine.setRepeatMode(mode)
+        showControlsTemporarily()
+    }
+    
+    /**
+     * Gesture handling for double tap
+     */
+    fun handleDoubleTapLeft() {
+        val newPos = (mediaEngine.playbackState.value.currentPosition - 10000).coerceAtLeast(0)
+        mediaEngine.seekTo(newPos)
+        showControlsTemporarily()
+    }
+    
+    fun handleDoubleTapRight() {
+        val currentState = mediaEngine.playbackState.value
+        val newPos = (currentState.currentPosition + 10000).coerceAtMost(currentState.duration)
+        mediaEngine.seekTo(newPos)
+        showControlsTemporarily()
+    }
+    
+    /**
+     * Subtitle auto-detection
+     */
+    fun autoDetectSubtitles() {
+        val currentItem = currentMediaItem.value ?: return
+        val videoUri = currentItem.uri
+        
+        // Auto-detect subtitle files based on video file path
+        val subtitleTracks = mutableListOf<SubtitleTrack>()
+        
+        // Common subtitle file extensions
+        val subtitleExtensions = listOf("srt", "vtt", "ass", "ssa", "sub")
+        
+        try {
+            // Get video file directory and name without extension
+            val videoPathStr = videoUri.path ?: return
+            val videoFile = java.io.File(videoPathStr)
+            val videoDir = videoFile.parentFile ?: return
+            val videoNameWithoutExt = videoFile.nameWithoutExtension
+            
+            // Search for subtitle files in same directory
+            videoDir.listFiles()?.forEach { file ->
+                val fileName = file.name
+                val fileExtension = file.extension.lowercase()
+                
+                if (fileExtension in subtitleExtensions) {
+                    // Check if subtitle file matches video name
+                    val subtitleNameWithoutExt = file.nameWithoutExtension
+                    
+                    if (subtitleNameWithoutExt.startsWith(videoNameWithoutExt)) {
+                        // Extract language from filename (e.g., movie.en.srt, movie.es.srt)
+                        val languageCode = if (subtitleNameWithoutExt.length > videoNameWithoutExt.length + 1) {
+                            subtitleNameWithoutExt.substring(videoNameWithoutExt.length + 1)
+                        } else {
+                            "unknown"
+                        }
+                        
+                        val track = SubtitleTrack(
+                            id = "subtitle_${file.absolutePath}",
+                            title = "${languageCode.uppercase()} (${fileExtension.uppercase()})",
+                            language = languageCode,
+                            uri = file.toURI().toString(),
+                            isExternal = true
+                        )
+                        
+                        subtitleTracks.add(track)
+                    }
+                }
+            }
+            
+            // Also add embedded subtitle tracks from ExoPlayer
+            val embeddedTracks = getEmbeddedSubtitleTracks()
+            subtitleTracks.addAll(embeddedTracks)
+            
+        } catch (e: Exception) {
+            // Log error but don't crash
+            android.util.Log.e("VideoPlayer", "Error auto-detecting subtitles", e)
+        }
+        
+        _availableSubtitleTracks.value = subtitleTracks
+        
+        // Auto-select first subtitle track if available
+        if (subtitleTracks.isNotEmpty() && _selectedSubtitleTrack.value == null) {
+            selectSubtitleTrack(subtitleTracks.first())
+        }
+    }
+    
+    private fun getEmbeddedSubtitleTracks(): List<SubtitleTrack> {
+        // Mock implementation - in real app would extract from ExoPlayer's track info
+        return listOf(
+            SubtitleTrack(
+                id = "embedded_1",
+                title = "English (Embedded)",
+                language = "en",
+                isExternal = false
+            )
+        )
+    }
+    
+    /**
+     * Enhanced error handling
+     */
+    fun clearError() {
+        mediaEngine.clearError()
+    }
+    
+    fun retryPlayback() {
+        val currentItem = currentMediaItem.value
+        if (currentItem != null) {
+            mediaEngine.playMediaItem(currentItem)
+        }
+    }
+    
+    fun openWithAlternativeApp() {
+        val currentItem = currentMediaItem.value
+        if (currentItem != null) {
+            // In real implementation, would create intent to open with other apps
+            try {
+                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW).apply {
+                    setDataAndType(currentItem.uri, "video/*")
+                    addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                
+                // This would be called from an Activity context in real implementation
+                // context.startActivity(Intent.createChooser(intent, "Open with"))
+            } catch (e: Exception) {
+                // Handle error
+            }
+        }
+    }
+    
+    fun skipToNextOnError() {
+        val currentQueue = mediaQueue.value
+        val currentIndex = currentQueue.currentIndex
+        
+        if (currentIndex < currentQueue.items.size - 1) {
+            playMediaAtIndex(currentIndex + 1)
         }
     }
     

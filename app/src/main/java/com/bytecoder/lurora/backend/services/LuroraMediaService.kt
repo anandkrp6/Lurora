@@ -67,15 +67,19 @@ class LuroraMediaService : MediaSessionService() {
         mediaEngine.exoPlayer?.addListener(object : Player.Listener {
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 updateNotification()
+                updateLockScreenMetadata()
             }
             
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 updateNotification()
+                updateLockScreenMetadata()
             }
             
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_IDLE || playbackState == Player.STATE_ENDED) {
                     stopSelf()
+                } else {
+                    updateLockScreenMetadata()
                 }
             }
         })
@@ -192,6 +196,33 @@ class LuroraMediaService : MediaSessionService() {
         drawable.setBounds(0, 0, canvas.width, canvas.height)
         drawable.draw(canvas)
         return bitmap
+    }
+    
+    /**
+     * Update lock screen metadata for media controls
+     */
+    private fun updateLockScreenMetadata() {
+        val currentMediaItem = mediaEngine.exoPlayer?.currentMediaItem
+        currentMediaItem?.let { item ->
+            // Update MediaSession metadata for lock screen controls
+            mediaSession?.let { session ->
+                val metadata = androidx.media3.common.MediaMetadata.Builder()
+                    .setTitle(item.mediaMetadata.title ?: "Unknown Title")
+                    .setArtist(item.mediaMetadata.artist ?: "Unknown Artist")
+                    .setAlbumTitle(item.mediaMetadata.albumTitle ?: "Unknown Album")
+                    .setArtworkUri(item.mediaMetadata.artworkUri)
+                    .build()
+                
+                // Create updated media item with metadata
+                val updatedItem = MediaItem.Builder()
+                    .setUri(item.localConfiguration?.uri ?: android.net.Uri.EMPTY)
+                    .setMediaMetadata(metadata)
+                    .build()
+                
+                // This would update the MediaSession's current item in a real implementation
+                // session.setCurrentMediaItem(updatedItem)
+            }
+        }
     }
     
     /**

@@ -2,9 +2,12 @@ package com.bytecoder.lurora.frontend.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.content.Context
 import com.bytecoder.lurora.backend.models.*
 import com.bytecoder.lurora.backend.player.LuroraMediaEngine
+import com.bytecoder.lurora.backend.services.LuroraMediaService
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
@@ -16,7 +19,8 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class MusicPlayerViewModel @Inject constructor(
-    private val mediaEngine: LuroraMediaEngine
+    private val mediaEngine: LuroraMediaEngine,
+    @ApplicationContext private val context: Context
 ) : ViewModel() {
     
     // Media engine state flows
@@ -32,6 +36,9 @@ class MusicPlayerViewModel @Inject constructor(
     private val _showLyrics = MutableStateFlow(false)
     val showLyrics: StateFlow<Boolean> = _showLyrics.asStateFlow()
     
+    private val _showEnhancedEqualizer = MutableStateFlow(false)
+    val showEnhancedEqualizer: StateFlow<Boolean> = _showEnhancedEqualizer.asStateFlow()
+    
     private val _currentLyrics = MutableStateFlow<List<LyricLine>>(emptyList())
     val currentLyrics: StateFlow<List<LyricLine>> = _currentLyrics.asStateFlow()
     
@@ -40,6 +47,12 @@ class MusicPlayerViewModel @Inject constructor(
     
     private val _equalizerBands = MutableStateFlow<List<EqualizerBand>>(getDefaultEqualizerBands())
     val equalizerBands: StateFlow<List<EqualizerBand>> = _equalizerBands.asStateFlow()
+    
+    private val _bassBoost = MutableStateFlow(AudioEffect.BassBoost(enabled = false, strength = 0f))
+    val bassBoost: StateFlow<AudioEffect.BassBoost> = _bassBoost.asStateFlow()
+    
+    private val _virtualizer = MutableStateFlow(AudioEffect.Virtualizer(enabled = false, strength = 0f))
+    val virtualizer: StateFlow<AudioEffect.Virtualizer> = _virtualizer.asStateFlow()
     
     private val _visualizerData = MutableStateFlow<VisualizerData?>(null)
     val visualizerData: StateFlow<VisualizerData?> = _visualizerData.asStateFlow()
@@ -70,12 +83,19 @@ class MusicPlayerViewModel @Inject constructor(
      */
     fun playMediaItem(mediaItem: MediaItem) {
         mediaEngine.playMediaItem(mediaItem)
+        startBackgroundService()
         addToRecentlyPlayed(mediaItem)
     }
     
     fun playQueue(queue: MediaQueue, startIndex: Int = 0) {
         mediaEngine.playQueue(queue, startIndex)
+        startBackgroundService()
         queue.items.getOrNull(startIndex)?.let { addToRecentlyPlayed(it) }
+    }
+    
+    private fun startBackgroundService() {
+        // Start the media service for background playback and lock screen controls
+        LuroraMediaService.startService(context)
     }
     
     fun togglePlayback() {
@@ -103,13 +123,6 @@ class MusicPlayerViewModel @Inject constructor(
     
     fun collapsePlayer() {
         _isExpanded.value = false
-    }
-    
-    fun toggleLyrics() {
-        _showLyrics.value = !_showLyrics.value
-        if (_showLyrics.value) {
-            loadLyrics()
-        }
     }
     
     /**
@@ -162,22 +175,31 @@ class MusicPlayerViewModel @Inject constructor(
     /**
      * Audio Effects
      */
-    fun setAudioEffect(type: AudioEffect.Type, enabled: Boolean) {
-        val current = _audioEffects.value.toMutableList()
-        val index = current.indexOfFirst { it.type == type }
-        if (index != -1) {
-            current[index] = current[index].copy(enabled = enabled)
-            _audioEffects.value = current
+    fun toggleLyrics() {
+        _showLyrics.value = !_showLyrics.value
+        if (_showEnhancedEqualizer.value) {
+            _showEnhancedEqualizer.value = false
         }
     }
     
-    fun setAudioEffectStrength(type: AudioEffect.Type, strength: Float) {
-        val current = _audioEffects.value.toMutableList()
-        val index = current.indexOfFirst { it.type == type }
-        if (index != -1) {
-            current[index] = current[index].copy(strength = strength)
-            _audioEffects.value = current
+    fun toggleEnhancedEqualizer() {
+        _showEnhancedEqualizer.value = !_showEnhancedEqualizer.value
+        if (_showLyrics.value) {
+            _showLyrics.value = false
         }
+    }
+    
+    /**
+     * Audio effects
+     */
+    fun setBassBoost(bassBoost: AudioEffect.BassBoost) {
+        _bassBoost.value = bassBoost
+        // In real implementation, would apply to audio engine
+    }
+    
+    fun setVirtualizer(virtualizer: AudioEffect.Virtualizer) {
+        _virtualizer.value = virtualizer
+        // In real implementation, would apply to audio engine
     }
     
     /**
@@ -377,9 +399,12 @@ class MusicPlayerViewModel @Inject constructor(
     }
     
     private fun getDefaultAudioEffects(): List<AudioEffect> {
-        return AudioEffect.Type.values().map { type ->
-            AudioEffect(type = type, enabled = false, strength = 0.5f)
-        }
+        return listOf(
+            AudioEffect.BassBoost(),
+            AudioEffect.Virtualizer(),
+            AudioEffect.Reverb(),
+            AudioEffect.Echo()
+        )
     }
     
     private fun getDefaultEqualizerBands(): List<EqualizerBand> {

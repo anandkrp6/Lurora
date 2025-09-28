@@ -303,6 +303,29 @@ class LuroraMediaEngine @Inject constructor(
     }
     
     /**
+     * Play media at specific index in queue
+     */
+    fun playMediaAtIndex(index: Int) {
+        _exoPlayer?.let { player ->
+            if (index in 0 until player.mediaItemCount) {
+                player.seekToDefaultPosition(index)
+                player.play()
+            }
+        }
+    }
+    
+    /**
+     * Adjust volume
+     */
+    fun adjustVolume(delta: Float) {
+        _exoPlayer?.let { player ->
+            val currentVolume = player.volume
+            val newVolume = (currentVolume + delta).coerceIn(0f, 1f)
+            player.volume = newVolume
+        }
+    }
+    
+    /**
      * Release resources
      */
     fun release() {

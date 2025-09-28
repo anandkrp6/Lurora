@@ -21,6 +21,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -73,31 +74,14 @@ fun VideoPlayerScreen(
         // Error display
         val error by viewModel.error.collectAsStateWithLifecycle()
         error?.let { errorMessage ->
-            Card(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer
-                )
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Error,
-                        contentDescription = "Error",
-                        tint = MaterialTheme.colorScheme.onErrorContainer
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = errorMessage,
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        textAlign = TextAlign.Center
-                    )
-                }
-            }
+            EnhancedErrorDialog(
+                errorMessage = errorMessage,
+                onDismiss = { viewModel.clearError() },
+                onRetry = { viewModel.retryPlayback() },
+                onOpenWith = { viewModel.openWithAlternativeApp() },
+                onSkipToNext = { viewModel.skipToNextOnError() },
+                modifier = Modifier.align(Alignment.Center)
+            )
         }
     }
 }
@@ -124,6 +108,19 @@ private fun VideoSurface(
                 detectTapGestures(
                     onTap = {
                         viewModel.toggleControls()
+                    },
+                    onDoubleTap = { offset ->
+                        val screenWidth = size.width.toFloat()
+                        if (offset.x < screenWidth * 0.4f) {
+                            // Double tap on left side - rewind 10 seconds
+                            viewModel.handleDoubleTapLeft()
+                        } else if (offset.x > screenWidth * 0.6f) {
+                            // Double tap on right side - forward 10 seconds
+                            viewModel.handleDoubleTapRight()
+                        } else {
+                            // Double tap in center - toggle playback
+                            viewModel.togglePlayback()
+                        }
                     }
                 )
             }
@@ -267,6 +264,28 @@ private fun VideoPlayerTopBar(
             modifier = Modifier.weight(1f),
             textAlign = TextAlign.Center
         )
+        
+        // Queue button
+        var showQueue by remember { mutableStateOf(false) }
+        
+        Box {
+            IconButton(onClick = { showQueue = true }) {
+                Icon(
+                    imageVector = Icons.Default.QueueMusic,
+                    contentDescription = "Show Queue",
+                    tint = Color.White
+                )
+            }
+            
+            // Queue view modal
+            if (showQueue) {
+                VideoQueueView(
+                    viewModel = viewModel,
+                    onDismiss = { showQueue = false },
+                    modifier = Modifier.align(Alignment.TopEnd)
+                )
+            }
+        }
         
         // Settings menu
         var showMenu by remember { mutableStateOf(false) }
@@ -448,6 +467,52 @@ private fun VideoPlayerBottomBar(
                     tint = Color.White
                 )
             }
+            
+            // More options menu
+            var showMoreMenu by remember { mutableStateOf(false) }
+            Box {
+                IconButton(onClick = { showMoreMenu = true }) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "More Options",
+                        tint = Color.White
+                    )
+                }
+                
+                DropdownMenu(
+                    expanded = showMoreMenu,
+                    onDismissRequest = { showMoreMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Picture in Picture") },
+                        onClick = { 
+                            showMoreMenu = false
+                            // Enable PiP mode
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Cast") },
+                        onClick = { 
+                            showMoreMenu = false
+                            // Show cast dialog
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Sleep Timer") },
+                        onClick = { 
+                            showMoreMenu = false
+                            // Show sleep timer dialog
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Statistics") },
+                        onClick = { 
+                            showMoreMenu = false
+                            // Show video statistics
+                        }
+                    )
+                }
+            }
         }
     }
 }
@@ -603,5 +668,276 @@ private fun formatTime(timeMs: Long): String {
         String.format("%d:%02d:%02d", hours, minutes, seconds)
     } else {
         String.format("%d:%02d", minutes, seconds)
+    }
+}
+
+/**
+ * Video queue view modal
+ */
+@Composable
+private fun VideoQueueView(
+    viewModel: VideoPlayerViewModel,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val mediaQueue by viewModel.mediaQueue.collectAsStateWithLifecycle()
+    val currentMediaItem by viewModel.currentMediaItem.collectAsStateWithLifecycle()
+    val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
+    
+    Card(
+        modifier = modifier
+            .width(300.dp)
+            .height(400.dp)
+            .padding(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color.Black.copy(alpha = 0.9f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize()
+        ) {
+            // Header
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Queue (${mediaQueue.items.size})",
+                    color = Color.White,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                
+                Row {
+                    IconButton(onClick = { viewModel.toggleShuffleMode() }) {
+                        Icon(
+                            imageVector = Icons.Default.Shuffle,
+                            contentDescription = "Shuffle",
+                            tint = if (playbackState.shuffleMode) 
+                                MaterialTheme.colorScheme.primary 
+                            else Color.White
+                        )
+                    }
+                    
+                    IconButton(onClick = { 
+                        val nextMode = when (playbackState.repeatMode) {
+                            RepeatMode.OFF -> RepeatMode.ALL
+                            RepeatMode.ALL -> RepeatMode.ONE
+                            RepeatMode.ONE -> RepeatMode.OFF
+                        }
+                        viewModel.setRepeatMode(nextMode)
+                    }) {
+                        Icon(
+                            imageVector = when (playbackState.repeatMode) {
+                                RepeatMode.OFF -> Icons.Default.Repeat
+                                RepeatMode.ONE -> Icons.Default.RepeatOne
+                                RepeatMode.ALL -> Icons.Default.Repeat
+                            },
+                            contentDescription = "Repeat Mode",
+                            tint = if (playbackState.repeatMode != RepeatMode.OFF) 
+                                MaterialTheme.colorScheme.primary 
+                            else Color.White
+                        )
+                    }
+                    
+                    IconButton(onClick = onDismiss) {
+                        Icon(
+                            imageVector = Icons.Default.Close,
+                            contentDescription = "Close",
+                            tint = Color.White
+                        )
+                    }
+                }
+            }
+            
+            HorizontalDivider(color = Color.White.copy(alpha = 0.3f))
+            
+            // Queue items
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                items(mediaQueue.items.size) { index ->
+                    val item = mediaQueue.items[index]
+                    val isCurrentItem = item.id == currentMediaItem?.id
+                    
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { viewModel.playMediaAtIndex(index) }
+                            .background(
+                                if (isCurrentItem) 
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.2f) 
+                                else Color.Transparent
+                            )
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${index + 1}",
+                            color = if (isCurrentItem) 
+                                MaterialTheme.colorScheme.primary 
+                            else Color.White.copy(alpha = 0.7f),
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.width(24.dp)
+                        )
+                        
+                        Column(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = item.title,
+                                color = if (isCurrentItem) Color.White else Color.White.copy(alpha = 0.9f),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (isCurrentItem) FontWeight.Bold else FontWeight.Normal,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            
+                            item.artist?.let { artist ->
+                                Text(
+                                    text = artist,
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        
+                        if (item.duration > 0) {
+                            Text(
+                                text = formatTime(item.duration),
+                                color = Color.White.copy(alpha = 0.7f),
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Enhanced error dialog with retry and alternative options
+ */
+@Composable
+private fun EnhancedErrorDialog(
+    errorMessage: String,
+    onDismiss: () -> Unit,
+    onRetry: () -> Unit,
+    onOpenWith: () -> Unit,
+    onSkipToNext: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.padding(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = Icons.Default.Error,
+                contentDescription = "Error",
+                tint = MaterialTheme.colorScheme.onErrorContainer,
+                modifier = Modifier.size(48.dp)
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Text(
+                text = "Playback Error",
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                fontWeight = FontWeight.Bold
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            Text(
+                text = errorMessage,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            // Action buttons
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Retry button
+                Button(
+                    onClick = {
+                        onRetry()
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary
+                    )
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Retry")
+                }
+                
+                // Open with alternative app
+                OutlinedButton(
+                    onClick = {
+                        onOpenWith()
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.OpenInNew,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Open With...")
+                }
+                
+                // Skip to next
+                OutlinedButton(
+                    onClick = {
+                        onSkipToNext()
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.SkipNext,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Skip to Next")
+                }
+                
+                // Dismiss
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Dismiss")
+                }
+            }
+        }
     }
 }
