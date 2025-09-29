@@ -124,10 +124,32 @@ fun MainScreen(
                     )
                 }
                 MainTab.MORE -> {
-                    MoreTabContent(
-                        currentMoreTab = navigationState.currentMoreTab,
-                        onMoreTabChange = { viewModel.selectMoreTab(it) }
-                    )
+                    // Check if we're navigating to a specific screen within MORE tab
+                    val lastScreen = navigationState.navigationStack.lastOrNull()
+                    when {
+                        lastScreen is NavigationScreen.MoreTabPage -> {
+                            // Show the specific screen
+                            MoreTabScreenRouter(
+                                currentMoreTab = lastScreen.moreTab,
+                                onNavigateBack = { viewModel.popFromNavigationStack() },
+                                onPlayMedia = { media, position -> 
+                                    // TODO: Implement media playback
+                                },
+                                onOpenFile = { file -> 
+                                    // TODO: Implement file opening
+                                }
+                            )
+                        }
+                        else -> {
+                            // Show tab list
+                            MoreTabContent(
+                                currentMoreTab = navigationState.currentMoreTab,
+                                onMoreTabChange = { moreTab ->
+                                    viewModel.navigateToScreen(NavigationScreen.MoreTabPage(moreTab))
+                                }
+                            )
+                        }
+                    }
                 }
             }
             

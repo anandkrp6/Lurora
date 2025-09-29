@@ -1,5 +1,6 @@
 package com.bytecoder.lurora.frontend.ui.screens.tabs
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -20,6 +22,21 @@ import com.bytecoder.lurora.frontend.navigation.*
 fun MoreTabContent(
     currentMoreTab: MoreTab,
     onMoreTabChange: (MoreTab) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    // For now, simply show the list of tabs until we can fix the model issues
+    // This keeps the navigation working while we resolve data model conflicts
+    MoreTabList(
+        currentMoreTab = currentMoreTab,
+        onMoreTabSelected = onMoreTabChange,
+        modifier = modifier
+    )
+}
+
+@Composable
+private fun MoreTabList(
+    currentMoreTab: MoreTab,
+    onMoreTabSelected: (MoreTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
     // Get all available MoreTab items directly from the enum
@@ -34,7 +51,7 @@ fun MoreTabContent(
             MoreTabCard(
                 moreTab = moreTab,
                 isSelected = moreTab == currentMoreTab,
-                onClick = { onMoreTabChange(moreTab) }
+                onClick = { onMoreTabSelected(moreTab) }
             )
         }
     }
