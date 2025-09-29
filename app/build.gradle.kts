@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.compose.compiler)
     id("kotlin-kapt")
     id("dagger.hilt.android.plugin")
@@ -92,6 +93,9 @@ dependencies {
     // Coroutines
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.coroutines.android)
+
+    // Serialization
+    implementation(libs.kotlinx.serialization.json)
 
     // Lifecycle
     implementation(libs.androidx.lifecycle.runtime.ktx)

@@ -3,29 +3,43 @@ package com.bytecoder.lurora.frontend.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bytecoder.lurora.backend.models.*
+import com.bytecoder.lurora.backend.repositories.MediaRepository
+import com.bytecoder.lurora.backend.utils.ErrorRecoveryManager
+import com.bytecoder.lurora.backend.utils.PerformanceManager
 import com.bytecoder.lurora.frontend.navigation.*
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
-import android.content.ContentUris
-import android.content.Context
-import android.database.Cursor
-import android.net.Uri
-import android.provider.MediaStore
-import dagger.hilt.android.qualifiers.ApplicationContext
-import java.io.File
 import javax.inject.Inject
 
 @HiltViewModel
 class MediaLibraryViewModel @Inject constructor(
-    @ApplicationContext private val context: Context
+    private val mediaRepository: MediaRepository,
+    private val errorRecoveryManager: ErrorRecoveryManager,
+    private val performanceManager: PerformanceManager
 ) : ViewModel() {
 
-    private val _videoFiles = MutableStateFlow<List<MediaItem>>(emptyList())
-    val videoFiles: StateFlow<List<MediaItem>> = _videoFiles.asStateFlow()
+    // Use repository flows directly
+    val videoFiles: StateFlow<List<MediaItem>> = mediaRepository.getVideoFiles()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
-    private val _audioFiles = MutableStateFlow<List<MediaItem>>(emptyList())
-    val audioFiles: StateFlow<List<MediaItem>> = _audioFiles.asStateFlow()
+    val audioFiles: StateFlow<List<MediaItem>> = mediaRepository.getAudioFiles()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    val favoriteFiles: StateFlow<List<MediaItem>> = mediaRepository.getFavoriteFiles()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -39,28 +53,40 @@ class MediaLibraryViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    private val _lastError = MutableStateFlow<String?>(null)
+    val lastError: StateFlow<String?> = _lastError.asStateFlow()
+
     init {
         scanMediaFiles()
+        observeErrors()
     }
 
-    fun scanMediaFiles() {
+    private fun observeErrors() {
         viewModelScope.launch {
-            _isLoading.value = true
-            try {
-                val videos = scanVideoFiles()
-                val audios = scanAudioFiles()
-                _videoFiles.value = videos
-                _audioFiles.value = audios
-            } catch (e: Exception) {
-                // Handle scanning error
-                e.printStackTrace()
-            } finally {
-                _isLoading.value = false
+            errorRecoveryManager.lastError.collect { error ->
+                _lastError.value = error?.message
             }
         }
     }
 
+    fun scanMediaFiles() {
+        viewModelScope.launch(errorRecoveryManager.globalExceptionHandler) {
+            _isLoading.value = true
+            
+            val result = errorRecoveryManager.retryOperation(maxRetries = 3) {
+                mediaRepository.scanAndUpdateMediaFiles()
+            }
+            
+            result.onFailure { exception ->
+                _lastError.value = "Failed to scan media files: ${exception.message}"
+            }
+            
+            _isLoading.value = false
+        }
+    }
+
     fun refreshLibrary() {
+        clearError()
         scanMediaFiles()
     }
 
@@ -76,9 +102,26 @@ class MediaLibraryViewModel @Inject constructor(
         _searchQuery.value = query
     }
 
+    fun clearError() {
+        _lastError.value = null
+        errorRecoveryManager.clearLastError()
+    }
+
+    fun toggleFavorite(mediaItem: MediaItem) {
+        viewModelScope.launch(errorRecoveryManager.globalExceptionHandler) {
+            mediaRepository.toggleFavorite(mediaItem)
+        }
+    }
+
+    fun updatePlaybackInfo(mediaItem: MediaItem, position: Long) {
+        viewModelScope.launch(errorRecoveryManager.globalExceptionHandler) {
+            mediaRepository.updatePlaybackInfo(mediaItem, position)
+        }
+    }
+
     fun getFilteredVideos(): StateFlow<List<MediaItem>> {
         return combine(
-            _videoFiles,
+            videoFiles,
             _sortOption,
             _filterOption,
             _searchQuery
@@ -93,7 +136,7 @@ class MediaLibraryViewModel @Inject constructor(
 
     fun getFilteredAudios(): StateFlow<List<MediaItem>> {
         return combine(
-            _audioFiles,
+            audioFiles,
             _sortOption,
             _filterOption,
             _searchQuery
@@ -104,6 +147,16 @@ class MediaLibraryViewModel @Inject constructor(
             started = SharingStarted.WhileSubscribed(5000),
             initialValue = emptyList()
         )
+    }
+
+    fun preloadThumbnails(items: List<MediaItem>) {
+        val uris = items.mapNotNull { it.albumArtUri }
+        performanceManager.preloadImages(uris)
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        performanceManager.cleanup()
     }
 
     private fun applyFiltersAndSort(
@@ -148,168 +201,5 @@ class MediaLibraryViewModel @Inject constructor(
         }
 
         return filtered
-    }
-
-    private fun scanVideoFiles(): List<MediaItem> {
-        val mediaItems = mutableListOf<MediaItem>()
-        
-        val projection = arrayOf(
-            MediaStore.Video.Media._ID,
-            MediaStore.Video.Media.DISPLAY_NAME,
-            MediaStore.Video.Media.TITLE,
-            MediaStore.Video.Media.DURATION,
-            MediaStore.Video.Media.SIZE,
-            MediaStore.Video.Media.DATA,
-            MediaStore.Video.Media.MIME_TYPE,
-            MediaStore.Video.Media.DATE_ADDED,
-            MediaStore.Video.Media.ARTIST,
-            MediaStore.Video.Media.ALBUM
-        )
-
-        val cursor: Cursor? = context.contentResolver.query(
-            MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
-            projection,
-            null,
-            null,
-            "${MediaStore.Video.Media.DATE_ADDED} DESC"
-        )
-
-        cursor?.use {
-            val idColumn = it.getColumnIndexOrThrow(MediaStore.Video.Media._ID)
-            val displayNameColumn = it.getColumnIndexOrThrow(MediaStore.Video.Media.DISPLAY_NAME)
-            val titleColumn = it.getColumnIndexOrThrow(MediaStore.Video.Media.TITLE)
-            val durationColumn = it.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION)
-            val sizeColumn = it.getColumnIndexOrThrow(MediaStore.Video.Media.SIZE)
-            val dataColumn = it.getColumnIndexOrThrow(MediaStore.Video.Media.DATA)
-            val mimeTypeColumn = it.getColumnIndexOrThrow(MediaStore.Video.Media.MIME_TYPE)
-            val dateAddedColumn = it.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_ADDED)
-            val artistColumn = it.getColumnIndexOrThrow(MediaStore.Video.Media.ARTIST)
-            val albumColumn = it.getColumnIndexOrThrow(MediaStore.Video.Media.ALBUM)
-
-            while (it.moveToNext()) {
-                val id = it.getLong(idColumn)
-                val displayName = it.getString(displayNameColumn) ?: ""
-                val title = it.getString(titleColumn) ?: displayName
-                val duration = it.getLong(durationColumn)
-                val size = it.getLong(sizeColumn)
-                val data = it.getString(dataColumn) ?: ""
-                val mimeType = it.getString(mimeTypeColumn) ?: ""
-                val dateAdded = it.getLong(dateAddedColumn) * 1000L // Convert to milliseconds
-                val artist = it.getString(artistColumn)
-                val album = it.getString(albumColumn)
-
-                // Verify file exists
-                if (data.isNotEmpty() && File(data).exists()) {
-                    val contentUri = ContentUris.withAppendedId(
-                        MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
-                        id
-                    )
-
-                    mediaItems.add(
-                        MediaItem(
-                            id = id.toString(),
-                            uri = Uri.parse(data),
-                            title = title,
-                            artist = artist,
-                            album = album,
-                            duration = duration,
-                            mediaType = MediaType.VIDEO,
-                            mimeType = mimeType,
-                            size = size,
-                            dateAdded = dateAdded
-                        )
-                    )
-                }
-            }
-        }
-
-        return mediaItems
-    }
-
-    private fun scanAudioFiles(): List<MediaItem> {
-        val mediaItems = mutableListOf<MediaItem>()
-        
-        val projection = arrayOf(
-            MediaStore.Audio.Media._ID,
-            MediaStore.Audio.Media.DISPLAY_NAME,
-            MediaStore.Audio.Media.TITLE,
-            MediaStore.Audio.Media.DURATION,
-            MediaStore.Audio.Media.SIZE,
-            MediaStore.Audio.Media.DATA,
-            MediaStore.Audio.Media.MIME_TYPE,
-            MediaStore.Audio.Media.DATE_ADDED,
-            MediaStore.Audio.Media.ARTIST,
-            MediaStore.Audio.Media.ALBUM,
-            MediaStore.Audio.Media.GENRE,
-            MediaStore.Audio.Media.ALBUM_ID
-        )
-
-        val cursor: Cursor? = context.contentResolver.query(
-            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-            projection,
-            "${MediaStore.Audio.Media.IS_MUSIC} != 0",
-            null,
-            "${MediaStore.Audio.Media.DATE_ADDED} DESC"
-        )
-
-        cursor?.use {
-            val idColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
-            val displayNameColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DISPLAY_NAME)
-            val titleColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)
-            val durationColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DURATION)
-            val sizeColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media.SIZE)
-            val dataColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
-            val mimeTypeColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media.MIME_TYPE)
-            val dateAddedColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
-            val artistColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)
-            val albumColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)
-            val genreColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media.GENRE)
-            val albumIdColumn = it.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
-
-            while (it.moveToNext()) {
-                val id = it.getLong(idColumn)
-                val displayName = it.getString(displayNameColumn) ?: ""
-                val title = it.getString(titleColumn) ?: displayName
-                val duration = it.getLong(durationColumn)
-                val size = it.getLong(sizeColumn)
-                val data = it.getString(dataColumn) ?: ""
-                val mimeType = it.getString(mimeTypeColumn) ?: ""
-                val dateAdded = it.getLong(dateAddedColumn) * 1000L // Convert to milliseconds
-                val artist = it.getString(artistColumn)
-                val album = it.getString(albumColumn)
-                val genre = it.getString(genreColumn)
-                val albumId = it.getLong(albumIdColumn)
-
-                // Verify file exists
-                if (data.isNotEmpty() && File(data).exists()) {
-                    // Get album art URI
-                    val albumArtUri = if (albumId != 0L) {
-                        ContentUris.withAppendedId(
-                            Uri.parse("content://media/external/audio/albumart"),
-                            albumId
-                        )
-                    } else null
-
-                    mediaItems.add(
-                        MediaItem(
-                            id = id.toString(),
-                            uri = Uri.parse(data),
-                            title = title,
-                            artist = artist,
-                            album = album,
-                            genre = genre,
-                            duration = duration,
-                            mediaType = MediaType.AUDIO,
-                            albumArtUri = albumArtUri,
-                            mimeType = mimeType,
-                            size = size,
-                            dateAdded = dateAdded
-                        )
-                    )
-                }
-            }
-        }
-
-        return mediaItems
     }
 }
