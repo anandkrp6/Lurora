@@ -1,5 +1,6 @@
 package com.bytecoder.lurora.frontend.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -37,7 +38,8 @@ import com.bytecoder.lurora.frontend.viewmodels.VideoPlayerViewModel
 @Composable
 fun VideoPlayerScreen(
     modifier: Modifier = Modifier,
-    viewModel: VideoPlayerViewModel = hiltViewModel()
+    viewModel: VideoPlayerViewModel = hiltViewModel(),
+    onBack: () -> Unit = {}
 ) {
     val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
     val currentMediaItem by viewModel.currentMediaItem.collectAsStateWithLifecycle()
@@ -46,6 +48,15 @@ fun VideoPlayerScreen(
     val brightness by viewModel.brightness.collectAsStateWithLifecycle()
     val abLoopStart by viewModel.abLoopStart.collectAsStateWithLifecycle()
     val abLoopEnd by viewModel.abLoopEnd.collectAsStateWithLifecycle()
+    
+    // Handle hardware back button
+    BackHandler {
+        if (isFullscreen) {
+            viewModel.toggleFullscreen()
+        } else {
+            onBack()
+        }
+    }
     
     Box(
         modifier = modifier
@@ -67,6 +78,7 @@ fun VideoPlayerScreen(
                 isFullscreen = isFullscreen,
                 abLoopStart = abLoopStart,
                 abLoopEnd = abLoopEnd,
+                onBack = onBack,
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -156,6 +168,7 @@ private fun VideoPlayerControls(
     isFullscreen: Boolean,
     abLoopStart: Long?,
     abLoopEnd: Long?,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(modifier = modifier) {
@@ -163,6 +176,7 @@ private fun VideoPlayerControls(
         VideoPlayerTopBar(
             viewModel = viewModel,
             isFullscreen = isFullscreen,
+            onBack = onBack,
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
@@ -228,6 +242,7 @@ private fun VideoPlayerControls(
 private fun VideoPlayerTopBar(
     viewModel: VideoPlayerViewModel,
     isFullscreen: Boolean,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -246,7 +261,7 @@ private fun VideoPlayerTopBar(
     ) {
         IconButton(onClick = { 
             if (isFullscreen) viewModel.toggleFullscreen()
-            else {/* Navigate back */}
+            else onBack()
         }) {
             Icon(
                 imageVector = Icons.Default.ArrowBack,

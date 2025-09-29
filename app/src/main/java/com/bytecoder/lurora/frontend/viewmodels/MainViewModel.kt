@@ -32,6 +32,9 @@ class MainViewModel @Inject constructor(
     private val _showViewDialog = MutableStateFlow(false)
     val showViewDialog: StateFlow<Boolean> = _showViewDialog.asStateFlow()
 
+    private val _showVideoPlayer = MutableStateFlow(false)
+    val showVideoPlayer: StateFlow<Boolean> = _showVideoPlayer.asStateFlow()
+
     init {
         loadSavedPreferences()
     }
@@ -341,5 +344,14 @@ class MainViewModel @Inject constructor(
             // Settings logic for the specific tab
             // Implementation will be added when creating individual tab screens
         }
+    }
+
+    // Video Player Navigation
+    fun showVideoPlayer() {
+        _showVideoPlayer.value = true
+    }
+    
+    fun hideVideoPlayer() {
+        _showVideoPlayer.value = false
     }
 }

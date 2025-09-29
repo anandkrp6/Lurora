@@ -16,6 +16,13 @@ import com.bytecoder.lurora.frontend.navigation.*
 import com.bytecoder.lurora.frontend.ui.components.*
 import com.bytecoder.lurora.frontend.ui.screens.tabs.*
 import com.bytecoder.lurora.frontend.viewmodels.MainViewModel
+import com.bytecoder.lurora.frontend.viewmodels.VideoPlayerViewModel
+import com.bytecoder.lurora.frontend.viewmodels.MusicPlayerViewModel
+import com.bytecoder.lurora.backend.models.MediaItem
+import com.bytecoder.lurora.backend.models.MediaType
+import com.bytecoder.lurora.backend.models.FileSystemItem
+import com.bytecoder.lurora.backend.models.SupportedFormats
+import android.net.Uri
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
@@ -29,8 +36,24 @@ fun MainScreen(
     val showSortDialog by viewModel.showSortDialog.collectAsStateWithLifecycle()
     val showFilterDialog by viewModel.showFilterDialog.collectAsStateWithLifecycle()
     val showViewDialog by viewModel.showViewDialog.collectAsStateWithLifecycle()
+    val showVideoPlayer by viewModel.showVideoPlayer.collectAsStateWithLifecycle()
     
     val context = LocalContext.current
+
+    // Get instances of media player ViewModels
+    val videoPlayerViewModel: VideoPlayerViewModel = hiltViewModel()
+    val musicPlayerViewModel: MusicPlayerViewModel = hiltViewModel()
+
+    // Media click handlers
+    val onVideoClick = { mediaItem: MediaItem ->
+        videoPlayerViewModel.playVideo(mediaItem)
+        viewModel.showVideoPlayer()
+    }
+
+    val onMusicClick = { mediaItem: MediaItem ->
+        musicPlayerViewModel.playMediaItem(mediaItem)
+        musicPlayerViewModel.expandPlayer()
+    }
 
     // Handle back button behavior
     BackHandler {
@@ -100,7 +123,8 @@ fun MainScreen(
                         onSectionChange = { viewModel.selectVideoSection(it) },
                         sortOption = navigationState.videoSortOption,
                         filterOption = navigationState.videoFilterOption,
-                        viewOption = navigationState.videoViewOption
+                        viewOption = navigationState.videoViewOption,
+                        onVideoClick = onVideoClick
                     )
                 }
                 MainTab.MUSIC -> {
@@ -109,7 +133,8 @@ fun MainScreen(
                         onSectionChange = { viewModel.selectMusicSection(it) },
                         sortOption = navigationState.musicSortOption,
                         filterOption = navigationState.musicFilterOption,
-                        viewOption = navigationState.musicViewOption
+                        viewOption = navigationState.musicViewOption,
+                        onMusicClick = onMusicClick
                     )
                 }
                 MainTab.ONLINE -> {
@@ -133,10 +158,34 @@ fun MainScreen(
                                 currentMoreTab = lastScreen.moreTab,
                                 onNavigateBack = { viewModel.popFromNavigationStack() },
                                 onPlayMedia = { media, position -> 
-                                    // TODO: Implement media playback
+                                    // Handle media playback from More tab sections
+                                    when (media.mediaType) {
+                                        MediaType.VIDEO -> {
+                                            videoPlayerViewModel.playVideo(media)
+                                            viewModel.showVideoPlayer()
+                                        }
+                                        MediaType.AUDIO -> {
+                                            musicPlayerViewModel.playMediaItem(media)
+                                            musicPlayerViewModel.expandPlayer()
+                                        }
+                                    }
                                 },
                                 onOpenFile = { file -> 
-                                    // TODO: Implement file opening
+                                    // Handle file opening from More tab sections
+                                    // Convert FileSystemItem to MediaItem if it's a media file
+                                    val mediaItem = convertFileToMediaItem(file)
+                                    if (mediaItem != null) {
+                                        when (mediaItem.mediaType) {
+                                            MediaType.VIDEO -> {
+                                                videoPlayerViewModel.playVideo(mediaItem)
+                                                viewModel.showVideoPlayer()
+                                            }
+                                            MediaType.AUDIO -> {
+                                                musicPlayerViewModel.playMediaItem(mediaItem)
+                                                musicPlayerViewModel.expandPlayer()
+                                            }
+                                        }
+                                    }
                                 }
                             )
                         }
@@ -157,6 +206,15 @@ fun MainScreen(
             MusicPlayerScreen(
                 modifier = Modifier.fillMaxSize()
             )
+            
+            // Video Player Overlay - Shown when video is selected
+            if (showVideoPlayer) {
+                VideoPlayerScreen(
+                    modifier = Modifier.fillMaxSize(),
+                    viewModel = videoPlayerViewModel,
+                    onBack = { viewModel.hideVideoPlayer() }
+                )
+            }
         }
     }
 
@@ -244,5 +302,38 @@ fun SearchDialog(
                 Text("Cancel")
             }
         }
+    )
+}
+
+/**
+ * Helper function to convert FileSystemItem to MediaItem for media playback
+ */
+private fun convertFileToMediaItem(fileItem: FileSystemItem): MediaItem? {
+    // Only convert if it's a media file with media info
+    val mediaInfo = fileItem.mediaInfo ?: return null
+    
+    // Get file extension to determine if supported
+    val extension = fileItem.name.substringAfterLast('.', "").lowercase()
+    if (!SupportedFormats.isSupported(extension)) {
+        return null
+    }
+    
+    return MediaItem(
+        id = fileItem.path,
+        uri = Uri.parse("file://${fileItem.path}"),
+        title = fileItem.name.substringBeforeLast('.'),
+        duration = mediaInfo.duration,
+        mediaType = mediaInfo.mediaType,
+        size = fileItem.size,
+        dateAdded = fileItem.lastModified.time,
+        mimeType = SupportedFormats.getMimeType(extension),
+        metadata = mapOf(
+            "file_path" to fileItem.path,
+            "extension" to extension,
+            "resolution" to (mediaInfo.resolution ?: ""),
+            "codec" to (mediaInfo.codec ?: ""),
+            "bitrate" to mediaInfo.bitrate.toString(),
+            "frame_rate" to mediaInfo.frameRate.toString()
+        )
     )
 }
