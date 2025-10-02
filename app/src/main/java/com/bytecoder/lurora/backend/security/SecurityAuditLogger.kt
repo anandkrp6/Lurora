@@ -1,6 +1,8 @@
 package com.bytecoder.lurora.backend.security
 
 import android.content.Context
+import android.os.Build
+import androidx.annotation.RequiresApi
 import com.bytecoder.lurora.backend.data.database.dao.SecurityAuditDao
 import com.bytecoder.lurora.backend.data.database.entity.SecurityAuditLog
 import kotlinx.coroutines.CoroutineScope
@@ -58,6 +60,7 @@ class SecurityAuditLogger @Inject constructor(
      * @param level Security level of the event
      * @param metadata Additional metadata about the event
      */
+    @RequiresApi(Build.VERSION_CODES.P)
     fun logSecurityEvent(
         event: SecurityEvent,
         description: String,
@@ -97,6 +100,7 @@ class SecurityAuditLogger @Inject constructor(
     /**
      * Log file access event
      */
+    @RequiresApi(Build.VERSION_CODES.P)
     fun logFileAccess(filePath: String, accessType: String) {
         logSecurityEvent(
             event = SecurityEvent.FILE_ACCESS,
@@ -112,6 +116,7 @@ class SecurityAuditLogger @Inject constructor(
     /**
      * Log permission request
      */
+    @RequiresApi(Build.VERSION_CODES.P)
     fun logPermissionRequest(permission: String, granted: Boolean) {
         val event = if (granted) SecurityEvent.PERMISSION_GRANTED else SecurityEvent.PERMISSION_DENIED
         val level = if (granted) SecurityLevel.INFO else SecurityLevel.WARNING
@@ -130,6 +135,7 @@ class SecurityAuditLogger @Inject constructor(
     /**
      * Log unauthorized access attempt
      */
+    @RequiresApi(Build.VERSION_CODES.P)
     fun logUnauthorizedAccess(resource: String, reason: String) {
         logSecurityEvent(
             event = SecurityEvent.UNAUTHORIZED_ACCESS,
@@ -146,6 +152,7 @@ class SecurityAuditLogger @Inject constructor(
     /**
      * Log file sharing event
      */
+    @RequiresApi(Build.VERSION_CODES.P)
     fun logFileSharing(filePath: String, shareMethod: String) {
         logSecurityEvent(
             event = SecurityEvent.FILE_SHARING,
@@ -160,6 +167,7 @@ class SecurityAuditLogger @Inject constructor(
     /**
      * Log download events
      */
+    @RequiresApi(Build.VERSION_CODES.P)
     fun logDownloadEvent(event: SecurityEvent, url: String, filePath: String? = null) {
         logSecurityEvent(
             event = event,
@@ -174,6 +182,7 @@ class SecurityAuditLogger @Inject constructor(
     /**
      * Log security violation
      */
+    @RequiresApi(Build.VERSION_CODES.P)
     fun logSecurityViolation(violationType: String, details: String) {
         logSecurityEvent(
             event = SecurityEvent.SECURITY_VIOLATION,
@@ -190,6 +199,7 @@ class SecurityAuditLogger @Inject constructor(
     /**
      * Log suspicious activity
      */
+    @RequiresApi(Build.VERSION_CODES.P)
     fun logSuspiciousActivity(activity: String, riskScore: Int) {
         val level = when (riskScore) {
             in 0..30 -> SecurityLevel.INFO
@@ -253,6 +263,7 @@ class SecurityAuditLogger @Inject constructor(
         return "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (${android.os.Build.VERSION.RELEASE})"
     }
     
+    @RequiresApi(Build.VERSION_CODES.P)
     private fun getAppVersion(): String {
         return try {
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
