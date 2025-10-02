@@ -8,6 +8,7 @@ import com.bytecoder.lurora.backend.analytics.CrashReporter
 import com.bytecoder.lurora.backend.performance.PerformanceMonitor
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
+import androidx.core.content.edit
 
 @HiltAndroidApp
 class App : Application() {
@@ -115,7 +116,7 @@ class App : Application() {
         val isFirstLaunch = prefs.getBoolean("is_first_launch", true)
         
         if (isFirstLaunch) {
-            prefs.edit().putBoolean("is_first_launch", false).apply()
+            prefs.edit { putBoolean("is_first_launch", false) }
         }
         
         return isFirstLaunch

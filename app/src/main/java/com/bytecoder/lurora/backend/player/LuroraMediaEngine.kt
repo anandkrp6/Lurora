@@ -1,10 +1,12 @@
 package com.bytecoder.lurora.backend.player
 
 import android.content.Context
+import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem as ExoMediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.datasource.DefaultHttpDataSource
@@ -81,6 +83,7 @@ class LuroraMediaEngine @Inject constructor(
     /**
      * Initialize the ExoPlayer instance
      */
+    @OptIn(UnstableApi::class)
     private fun initializePlayer() {
         if (_exoPlayer == null) {
             val httpDataSourceFactory = DefaultHttpDataSource.Factory()
