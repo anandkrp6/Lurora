@@ -599,7 +599,12 @@ private fun getSettingsCategories(): List<SettingsCategory> {
                 SettingItem("mini_player_size", "Mini Player Size", "Size of mini player", SettingType.SLIDER, 0.6f),
                 SettingItem("mini_player_position", "Default Position", "Mini player position", SettingType.DROPDOWN, "Bottom Right",
                     listOf("Top Left", "Top Right", "Bottom Left", "Bottom Right")),
-                SettingItem("auto_mini_player", "Auto Mini Player", "Auto-enable when minimizing", SettingType.SWITCH, true)
+                SettingItem("auto_mini_player", "Auto Mini Player", "Auto-enable when minimizing", SettingType.SWITCH, true),
+                SettingItem("mini_player_audio_display", "Audio Display Mode", "What to show for audio files", SettingType.DROPDOWN, "Both (Album Art & Equalizer)",
+                    listOf("Album Art", "Equalizer", "Both (Album Art & Equalizer)")),
+                SettingItem("mini_player_video_display", "Video Display Mode", "What to show for video files", SettingType.DROPDOWN, "Video Playing",
+                    listOf("Video Playing", "Thumbnail", "Equalizer", "Both (Thumbnail & Equalizer)")),
+                SettingItem("mini_player_switch_interval", "Switch Interval", "Auto-switch interval in seconds", SettingType.SLIDER, 10f)
             )
         ),
         

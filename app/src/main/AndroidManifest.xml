@@ -72,6 +72,22 @@
             android:launchMode="singleTop">
         </activity>
         
+        <!-- Music Player Activity -->
+        <activity
+            android:name=".frontend.activities.MusicPlayerActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.Lurora">
+        </activity>
+        
+        <!-- Video Player Activity -->
+        <activity
+            android:name=".frontend.activities.VideoPlayerActivity"
+            android:exported="false"
+            android:launchMode="singleTop"
+            android:theme="@style/Theme.Lurora">
+        </activity>
+        
         <!-- Media Service -->
         <service
             android:name=".backend.services.LuroraMediaService"

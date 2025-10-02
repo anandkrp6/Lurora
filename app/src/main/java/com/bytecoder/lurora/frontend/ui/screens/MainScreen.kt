@@ -8,15 +8,18 @@ import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bytecoder.lurora.frontend.navigation.*
 import com.bytecoder.lurora.frontend.ui.components.*
 import com.bytecoder.lurora.frontend.ui.screens.tabs.*
+import com.bytecoder.lurora.frontend.activities.MusicPlayerActivity
+import com.bytecoder.lurora.frontend.activities.VideoPlayerActivity
 import com.bytecoder.lurora.frontend.viewmodels.MainViewModel
-import com.bytecoder.lurora.frontend.viewmodels.VideoPlayerViewModel
 import com.bytecoder.lurora.frontend.viewmodels.MusicPlayerViewModel
 import com.bytecoder.lurora.backend.models.MediaItem
 import com.bytecoder.lurora.backend.models.MediaType
@@ -36,23 +39,19 @@ fun MainScreen(
     val showSortDialog by viewModel.showSortDialog.collectAsStateWithLifecycle()
     val showFilterDialog by viewModel.showFilterDialog.collectAsStateWithLifecycle()
     val showViewDialog by viewModel.showViewDialog.collectAsStateWithLifecycle()
-    val showVideoPlayer by viewModel.showVideoPlayer.collectAsStateWithLifecycle()
     
     val context = LocalContext.current
 
-    // Get instances of media player ViewModels
-    val videoPlayerViewModel: VideoPlayerViewModel = hiltViewModel()
+    // Get instance of music player ViewModel for mini player
     val musicPlayerViewModel: MusicPlayerViewModel = hiltViewModel()
 
-    // Media click handlers
+    // Media click handlers - Launch activities instead of showing overlays
     val onVideoClick = { mediaItem: MediaItem ->
-        videoPlayerViewModel.playVideo(mediaItem)
-        viewModel.showVideoPlayer()
+        VideoPlayerActivity.startActivity(context, mediaItem)
     }
 
     val onMusicClick = { mediaItem: MediaItem ->
-        musicPlayerViewModel.playMediaItem(mediaItem)
-        musicPlayerViewModel.expandPlayer()
+        MusicPlayerActivity.startActivity(context, mediaItem)
     }
 
     // Handle back button behavior
@@ -90,24 +89,31 @@ fun MainScreen(
             )
         },
         bottomBar = {
-            NavigationBar {
-                MainTab.values().forEach { tab ->
-                    NavigationBarItem(
-                        icon = { 
-                            Icon(
-                                imageVector = tab.icon,
-                                contentDescription = tab.title
-                            )
-                        },
-                        label = { Text(tab.title) },
-                        selected = navigationState.currentTab == tab,
-                        onClick = { 
-                            viewModel.selectTab(tab)
-                            // No special handling for Online tab - let it remember current section
-                        }
-                    )
+            // Use the BottomBarWithMiniPlayer to properly position mini player above navigation
+            val currentMediaItem by musicPlayerViewModel.currentMediaItem.collectAsStateWithLifecycle()
+            val playbackState by musicPlayerViewModel.playbackState.collectAsStateWithLifecycle()
+            val isExpanded by musicPlayerViewModel.isExpanded.collectAsStateWithLifecycle()
+            
+            LuroraBottomBarWithMiniPlayer(
+                currentTab = navigationState.currentTab,
+                onTabSelected = { tab ->
+                    viewModel.selectTab(tab)
+                    // No special handling for Online tab - let it remember current section
+                },
+                currentMediaItem = currentMediaItem,
+                playbackState = playbackState,
+                isFullPlayerVisible = isExpanded,
+                musicPlayerViewModel = musicPlayerViewModel,
+                onOpenFullPlayer = { 
+                    // Since we're using activities now, just launch the music player activity
+                    currentMediaItem?.let { 
+                        MusicPlayerActivity.startActivity(context, it)
+                    }
+                },
+                onClose = { 
+                    musicPlayerViewModel.stop()
                 }
-            }
+            )
         }
     ) { paddingValues ->
         Box(
@@ -161,12 +167,10 @@ fun MainScreen(
                                     // Handle media playback from More tab sections
                                     when (media.mediaType) {
                                         MediaType.VIDEO -> {
-                                            videoPlayerViewModel.playVideo(media)
-                                            viewModel.showVideoPlayer()
+                                            onVideoClick(media)
                                         }
                                         MediaType.AUDIO -> {
-                                            musicPlayerViewModel.playMediaItem(media)
-                                            musicPlayerViewModel.expandPlayer()
+                                            onMusicClick(media)
                                         }
                                     }
                                 },
@@ -177,12 +181,10 @@ fun MainScreen(
                                     if (mediaItem != null) {
                                         when (mediaItem.mediaType) {
                                             MediaType.VIDEO -> {
-                                                videoPlayerViewModel.playVideo(mediaItem)
-                                                viewModel.showVideoPlayer()
+                                                onVideoClick(mediaItem)
                                             }
                                             MediaType.AUDIO -> {
-                                                musicPlayerViewModel.playMediaItem(mediaItem)
-                                                musicPlayerViewModel.expandPlayer()
+                                                onMusicClick(mediaItem)
                                             }
                                         }
                                     }
@@ -200,20 +202,6 @@ fun MainScreen(
                         }
                     }
                 }
-            }
-            
-            // Music Player Overlay - Always available
-            MusicPlayerScreen(
-                modifier = Modifier.fillMaxSize()
-            )
-            
-            // Video Player Overlay - Shown when video is selected
-            if (showVideoPlayer) {
-                VideoPlayerScreen(
-                    modifier = Modifier.fillMaxSize(),
-                    viewModel = videoPlayerViewModel,
-                    onBack = { viewModel.hideVideoPlayer() }
-                )
             }
         }
     }
