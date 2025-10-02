@@ -190,7 +190,7 @@ private fun FileBrowserScreen(
                         showDeleteConfirmation = true
                     }
                 },
-                onShare = { /* TODO: implement sharing */ }
+                onShare = { viewModel.shareSelectedFiles() }
             )
         } else {
             FileBrowserAppBar(
@@ -201,8 +201,8 @@ private fun FileBrowserScreen(
                 canNavigateUp = viewModel.canNavigateUp(),
                 isAtDeviceRoot = currentPath == storageDevice.path,
                 onNavigateBack = onNavigateBack,
-                onSearchToggle = { /* TODO: implement search */ },
-                onSearchQueryChange = { /* TODO: implement search */ },
+                onSearchToggle = { viewModel.toggleSearchMode() },
+                onSearchQueryChange = { query -> viewModel.setSearchQuery(query) },
                 onNavigateUp = { viewModel.navigateUp() },
                 onViewModeToggle = { viewModel.toggleViewType() },
                 onShowSortDialog = { showSortDialog = true },

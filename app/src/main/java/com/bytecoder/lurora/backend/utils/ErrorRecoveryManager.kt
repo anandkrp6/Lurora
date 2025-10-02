@@ -32,8 +32,8 @@ class ErrorRecoveryManager @Inject constructor(
     private val _appState = MutableStateFlow(AppState())
     val appState: StateFlow<AppState> = _appState.asStateFlow()
     
-    private val _lastError = MutableStateFlow<AppError?>(null)
-    val lastError: StateFlow<AppError?> = _lastError.asStateFlow()
+    private val _lastError = MutableStateFlow<RecoveryError?>(null)
+    val lastError: StateFlow<RecoveryError?> = _lastError.asStateFlow()
 
     /**
      * Global exception handler for coroutines
@@ -83,7 +83,7 @@ class ErrorRecoveryManager @Inject constructor(
             val savedState = loadSavedAppState()
             savedState?.let {
                 _appState.value = it
-                recordError(AppError.CRASH_RECOVERY("App recovered from crash"))
+                recordError(RecoveryError.CRASH_RECOVERY("App recovered from crash"))
             }
             // Clear crash flag
             prefs.edit().putBoolean("app_crashed", false).apply()
@@ -111,12 +111,12 @@ class ErrorRecoveryManager @Inject constructor(
         Log.e("ErrorRecovery", "Handling exception", exception)
         
         val error = when (exception) {
-            is SecurityException -> AppError.PERMISSION_DENIED(exception.message ?: "Permission denied")
-            is java.io.FileNotFoundException -> AppError.FILE_NOT_FOUND(exception.message ?: "File not found")
-            is java.net.UnknownHostException -> AppError.NETWORK_ERROR("No internet connection")
-            is java.net.SocketTimeoutException -> AppError.NETWORK_TIMEOUT("Network timeout")
-            is OutOfMemoryError -> AppError.MEMORY_ERROR("Out of memory")
-            else -> AppError.UNKNOWN_ERROR(exception.message ?: "Unknown error occurred")
+            is SecurityException -> RecoveryError.PERMISSION_DENIED(exception.message ?: "Permission denied")
+            is java.io.FileNotFoundException -> RecoveryError.FILE_NOT_FOUND(exception.message ?: "File not found")
+            is java.net.UnknownHostException -> RecoveryError.NETWORK_ERROR("No internet connection")
+            is java.net.SocketTimeoutException -> RecoveryError.NETWORK_TIMEOUT("Network timeout")
+            is OutOfMemoryError -> RecoveryError.MEMORY_ERROR("Out of memory")
+            else -> RecoveryError.UNKNOWN_ERROR(exception.message ?: "Unknown error occurred")
         }
         
         recordError(error)
@@ -125,7 +125,7 @@ class ErrorRecoveryManager @Inject constructor(
     /**
      * Record error for user notification
      */
-    private fun recordError(error: AppError) {
+    private fun recordError(error: RecoveryError) {
         _lastError.value = error
         Log.w("ErrorRecovery", "Error recorded: ${error.message}")
     }
@@ -170,7 +170,7 @@ class ErrorRecoveryManager @Inject constructor(
         Log.w("ErrorRecovery", "Low memory detected, clearing caches")
         cleanupCorruptedFiles()
         System.gc() // Suggest garbage collection
-        recordError(AppError.MEMORY_WARNING("Low memory detected, caches cleared"))
+        recordError(RecoveryError.MEMORY_WARNING("Low memory detected, caches cleared"))
     }
 
     /**
@@ -204,15 +204,15 @@ class ErrorRecoveryManager @Inject constructor(
 /**
  * App error types
  */
-sealed class AppError(val message: String) {
-    data class PERMISSION_DENIED(val details: String) : AppError("Permission denied: $details")
-    data class FILE_NOT_FOUND(val details: String) : AppError("File not found: $details")
-    data class NETWORK_ERROR(val details: String) : AppError("Network error: $details")
-    data class NETWORK_TIMEOUT(val details: String) : AppError("Network timeout: $details")
-    data class MEMORY_ERROR(val details: String) : AppError("Memory error: $details")
-    data class MEMORY_WARNING(val details: String) : AppError("Memory warning: $details")
-    data class CRASH_RECOVERY(val details: String) : AppError("Crash recovery: $details")
-    data class UNKNOWN_ERROR(val details: String) : AppError("Unknown error: $details")
+sealed class RecoveryError(val message: String) {
+    data class PERMISSION_DENIED(val details: String) : RecoveryError("Permission denied: $details")
+    data class FILE_NOT_FOUND(val details: String) : RecoveryError("File not found: $details")
+    data class NETWORK_ERROR(val details: String) : RecoveryError("Network error: $details")
+    data class NETWORK_TIMEOUT(val details: String) : RecoveryError("Network timeout: $details")
+    data class MEMORY_ERROR(val details: String) : RecoveryError("Memory error: $details")
+    data class MEMORY_WARNING(val details: String) : RecoveryError("Memory warning: $details")
+    data class CRASH_RECOVERY(val details: String) : RecoveryError("Crash recovery: $details")
+    data class UNKNOWN_ERROR(val details: String) : RecoveryError("Unknown error: $details")
 }
 
 /**

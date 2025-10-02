@@ -91,3 +91,16 @@ data class StorageInfo(
     val isLowStorage: Boolean
         get() = availableSpace < (1024L * 1024L * 1024L) // Less than 1GB
 }
+
+/**
+ * Download progress information
+ */
+@Immutable
+data class DownloadProgress(
+    val downloadId: String,
+    val downloadedBytes: Long,
+    val totalBytes: Long,
+    val speed: Long, // bytes per second
+    val eta: Long, // estimated time remaining in seconds
+    val percentage: Float = if (totalBytes > 0) (downloadedBytes.toFloat() / totalBytes) * 100f else 0f
+)

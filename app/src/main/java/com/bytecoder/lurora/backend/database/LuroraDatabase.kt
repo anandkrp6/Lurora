@@ -4,6 +4,13 @@ import androidx.room.*
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.bytecoder.lurora.backend.models.*
+import com.bytecoder.lurora.backend.data.database.entity.SecurityAuditLog
+import com.bytecoder.lurora.backend.data.database.entity.DownloadQueue
+import com.bytecoder.lurora.backend.data.database.entity.AnalyticsEvent
+import com.bytecoder.lurora.backend.data.database.dao.SecurityAuditDao
+import com.bytecoder.lurora.backend.data.database.dao.DownloadQueueDao
+import com.bytecoder.lurora.backend.data.database.dao.AnalyticsDao
+import com.bytecoder.lurora.backend.download.DownloadStatus
 import kotlinx.coroutines.flow.Flow
 import java.util.Date
 
@@ -16,9 +23,12 @@ import java.util.Date
         PlaylistEntity::class,
         PlaylistMediaCrossRef::class,
         HistoryEntryEntity::class,
-        UserSettingsEntity::class
+        UserSettingsEntity::class,
+        SecurityAuditLog::class,
+        DownloadQueue::class,
+        AnalyticsEvent::class
     ],
-    version = 1,
+    version = 4,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -27,6 +37,9 @@ abstract class LuroraDatabase : RoomDatabase() {
     abstract fun playlistDao(): PlaylistDao
     abstract fun historyDao(): HistoryDao
     abstract fun settingsDao(): UserSettingsDao
+    abstract fun securityAuditDao(): SecurityAuditDao
+    abstract fun downloadQueueDao(): DownloadQueueDao
+    abstract fun analyticsDao(): AnalyticsDao
 }
 
 /**
@@ -76,6 +89,16 @@ class Converters {
             parts[0] to (parts.getOrNull(1) ?: "")
         }
     }
+    
+    @TypeConverter
+    fun fromDownloadStatus(value: DownloadStatus): String {
+        return value.name
+    }
+    
+    @TypeConverter
+    fun toDownloadStatus(value: String): DownloadStatus {
+        return DownloadStatus.valueOf(value)
+    }
 }
 
 /**
@@ -116,6 +139,7 @@ data class PlaylistEntity(
 @Entity(
     tableName = "playlist_media_cross_ref",
     primaryKeys = ["playlistId", "mediaItemId"],
+    indices = [Index(value = ["mediaItemId"])],
     foreignKeys = [
         ForeignKey(
             entity = PlaylistEntity::class,
@@ -222,9 +246,11 @@ interface PlaylistDao {
 
 @Dao
 interface HistoryDao {
+    @Transaction
     @Query("SELECT h.*, m.* FROM history_entries h INNER JOIN media_items m ON h.mediaItemId = m.id ORDER BY h.lastPlayedAt DESC")
     fun getAllHistoryWithMedia(): Flow<List<HistoryWithMedia>>
 
+    @Transaction
     @Query("SELECT h.*, m.* FROM history_entries h INNER JOIN media_items m ON h.mediaItemId = m.id WHERE m.mediaType = :mediaType ORDER BY h.lastPlayedAt DESC")
     fun getHistoryByType(mediaType: MediaType): Flow<List<HistoryWithMedia>>
 
@@ -296,7 +322,93 @@ data class HistoryWithMedia(
  */
 val MIGRATION_1_2 = object : Migration(1, 2) {
     override fun migrate(database: SupportSQLiteDatabase) {
-        // Example migration - add new column to existing table
-        // database.execSQL("ALTER TABLE media_items ADD COLUMN newColumn TEXT")
+        // Add security audit logs table
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS security_audit_logs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                timestamp INTEGER NOT NULL,
+                event TEXT NOT NULL,
+                description TEXT NOT NULL,
+                level TEXT NOT NULL,
+                userId TEXT NOT NULL,
+                deviceInfo TEXT NOT NULL,
+                appVersion TEXT NOT NULL,
+                metadata TEXT NOT NULL DEFAULT ''
+            )
+        """)
+        
+        // Create indexes for better query performance
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_security_audit_logs_timestamp ON security_audit_logs(timestamp)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_security_audit_logs_event ON security_audit_logs(event)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_security_audit_logs_level ON security_audit_logs(level)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_security_audit_logs_userId ON security_audit_logs(userId)")
+    }
+}
+
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // Add download queue table
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS download_queue (
+                id TEXT PRIMARY KEY NOT NULL,
+                url TEXT NOT NULL,
+                fileName TEXT NOT NULL,
+                targetDirectory TEXT NOT NULL,
+                priority INTEGER NOT NULL DEFAULT 0,
+                requiresWifi INTEGER NOT NULL DEFAULT 0,
+                requiresCharging INTEGER NOT NULL DEFAULT 0,
+                scheduledTime INTEGER NOT NULL,
+                maxRetries INTEGER NOT NULL DEFAULT 3,
+                retryCount INTEGER NOT NULL DEFAULT 0,
+                bandwidthLimitKbps INTEGER,
+                headers TEXT NOT NULL DEFAULT '',
+                metadata TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'QUEUED',
+                downloadedBytes INTEGER NOT NULL DEFAULT 0,
+                totalBytes INTEGER NOT NULL DEFAULT 0,
+                currentSpeed INTEGER NOT NULL DEFAULT 0,
+                errorMessage TEXT,
+                createdAt INTEGER NOT NULL,
+                startedAt INTEGER,
+                completedAt INTEGER,
+                lastUpdated INTEGER NOT NULL
+            )
+        """)
+        
+        // Create indexes for download queue
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_download_queue_status ON download_queue(status)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_download_queue_priority ON download_queue(priority)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_download_queue_scheduledTime ON download_queue(scheduledTime)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_download_queue_createdAt ON download_queue(createdAt)")
+    }
+}
+
+val MIGRATION_3_4 = object : Migration(3, 4) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        // Add analytics events table
+        database.execSQL("""
+            CREATE TABLE IF NOT EXISTS analytics_events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                eventType TEXT NOT NULL,
+                properties TEXT NOT NULL DEFAULT '',
+                value REAL,
+                sessionId TEXT NOT NULL,
+                timestamp INTEGER NOT NULL,
+                userId TEXT NOT NULL,
+                deviceInfo TEXT NOT NULL,
+                screen TEXT,
+                source TEXT NOT NULL DEFAULT 'user',
+                platform TEXT NOT NULL DEFAULT 'android',
+                appVersion TEXT,
+                metadata TEXT NOT NULL DEFAULT ''
+            )
+        """)
+        
+        // Create indexes for analytics events
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_analytics_events_eventType ON analytics_events(eventType)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_analytics_events_sessionId ON analytics_events(sessionId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_analytics_events_timestamp ON analytics_events(timestamp)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_analytics_events_userId ON analytics_events(userId)")
+        database.execSQL("CREATE INDEX IF NOT EXISTS index_analytics_events_screen ON analytics_events(screen)")
     }
 }

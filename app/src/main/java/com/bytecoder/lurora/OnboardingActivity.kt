@@ -52,7 +52,9 @@ class OnboardingActivity : ComponentActivity() {
                     viewModel.onNavigationEventHandled()
                 }
 
-                null -> TODO()
+                null -> {
+                    // No navigation event to handle
+                }
             }
         }
         

@@ -210,7 +210,7 @@ fun HistoryScreen(
                                 }
                             },
                             onRemove = { viewModel.removeEntry(entry.id) },
-                            modifier = Modifier.animateItemPlacement()
+                            modifier = Modifier.animateItem()
                         )
                     }
                 }

@@ -1,19 +1,43 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-   Sample data extraction rules file; uncomment and customize as necessary.
+   Data extraction rules for Lurora Media Player
+   Controls what data is backed up to cloud and transferred between devices
    See https://developer.android.com/about/versions/12/backup-restore#xml-changes
    for details.
 -->
 <data-extraction-rules>
     <cloud-backup>
-        <!-- TODO: Use <include> and <exclude> to control what is backed up.
-        <include .../>
-        <exclude .../>
-        -->
+        <!-- Include user preferences and settings -->
+        <include domain="sharedpref" path="app_preferences.xml"/>
+        <include domain="sharedpref" path="settings.xml"/>
+        
+        <!-- Include playlists and user-created content -->
+        <include domain="database" path="lurora_database"/>
+        
+        <!-- Include downloaded media metadata (not the actual files) -->
+        <include domain="file" path="lurora_cache/metadata/"/>
+        
+        <!-- Exclude sensitive data and temporary files -->
+        <exclude domain="file" path="lurora_cache/media/"/>
+        <exclude domain="file" path="crash_logs/"/>
+        <exclude domain="file" path="analytics/"/>
+        <exclude domain="database" path="lurora_database/security_audit_logs"/>
+        <exclude domain="database" path="lurora_database/analytics_events"/>
     </cloud-backup>
-    <!--
+    
     <device-transfer>
-        <include .../>
-        <exclude .../>
+        <!-- Include user preferences for device transfer -->
+        <include domain="sharedpref" path="app_preferences.xml"/>
+        <include domain="sharedpref" path="settings.xml"/>
+        
+        <!-- Include playlists and favorites -->
+        <include domain="database" path="lurora_database/playlists"/>
+        <include domain="database" path="lurora_database/media_items"/>
+        <include domain="database" path="lurora_database/playlist_media_cross_ref"/>
+        
+        <!-- Exclude large cache files and sensitive data -->
+        <exclude domain="file" path="lurora_cache/"/>
+        <exclude domain="database" path="lurora_database/download_queue"/>
+        <exclude domain="database" path="lurora_database/security_audit_logs"/>
+        <exclude domain="database" path="lurora_database/analytics_events"/>
     </device-transfer>
-    -->
 </data-extraction-rules>

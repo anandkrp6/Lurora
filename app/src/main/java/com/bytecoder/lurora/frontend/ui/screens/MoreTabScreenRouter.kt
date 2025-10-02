@@ -1,10 +1,14 @@
 package com.bytecoder.lurora.frontend.ui.screens
 
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import com.bytecoder.lurora.backend.models.*
 import com.bytecoder.lurora.frontend.navigation.MoreTab
 
@@ -19,6 +23,8 @@ fun MoreTabScreenRouter(
     onOpenFile: (FileSystemItem) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    
     when (currentMoreTab) {
         MoreTab.HISTORY -> {
             HistoryScreen(
@@ -39,21 +45,23 @@ fun MoreTabScreenRouter(
             )
         }
         MoreTab.PERMISSIONS -> {
-            // TODO: Fix PermissionsScreen compilation error
-            // Temporary placeholder
-            Column(
-                modifier = modifier.fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = "Permissions",
-                    style = MaterialTheme.typography.headlineMedium
-                )
-                TextButton(onClick = onNavigateBack) {
-                    Text("Back")
-                }
-            }
+            PermissionsScreen(
+                onNavigateBack = onNavigateBack,
+                onOpenSettings = { 
+                    // Navigate to app-specific settings page
+                    try {
+                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.fromParts("package", context.packageName, null)
+                        }
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        // Fallback to general settings if app-specific settings fail
+                        val intent = Intent(Settings.ACTION_SETTINGS)
+                        context.startActivity(intent)
+                    }
+                },
+                modifier = modifier
+            )
         }
         MoreTab.FILE_EXPLORER -> {
             FileExplorerScreen(

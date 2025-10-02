@@ -23,6 +23,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
+import com.bytecoder.lurora.backend.utils.SharingUtils
 import javax.inject.Inject
 
 @HiltViewModel
@@ -57,9 +58,9 @@ class FileExplorerViewModel @Inject constructor(
     val viewMode: FileViewType get() = uiState.viewType
     val sortOption: FileSortOption get() = uiState.sortOption
     val showHiddenFiles: Boolean get() = uiState.showHiddenFiles
-    val searchQuery: String get() = "" // Simplified
-    val isSearchMode: Boolean get() = false // Simplified
-    val searchResults: List<FileSystemItem> get() = emptyList() // Simplified
+    val searchQuery: String get() = uiState.searchQuery
+    val isSearchMode: Boolean get() = uiState.isSearchMode
+    val searchResults: List<FileSystemItem> get() = uiState.searchResults
     val storageLocations: List<String> get() = _storageDevices.map { it.path }
 
     init {
@@ -383,11 +384,84 @@ class FileExplorerViewModel @Inject constructor(
     }
 
     fun toggleSearchMode() {
-        // Implementation would toggle search mode
+        uiState = uiState.copy(
+            isSearchMode = !uiState.isSearchMode,
+            searchQuery = if (!uiState.isSearchMode) "" else uiState.searchQuery,
+            searchResults = if (!uiState.isSearchMode) emptyList() else uiState.searchResults
+        )
     }
 
     fun setSearchQuery(query: String) {
-        // Implementation would update search query
+        uiState = uiState.copy(searchQuery = query)
+        if (query.isNotBlank()) {
+            performSearch(query)
+        } else {
+            uiState = uiState.copy(searchResults = emptyList())
+        }
+    }
+    
+    private fun performSearch(query: String) {
+        viewModelScope.launch {
+            uiState = uiState.copy(isLoading = true)
+            try {
+                val results = withContext(Dispatchers.IO) {
+                    searchFiles(uiState.currentPath, query)
+                }
+                uiState = uiState.copy(
+                    searchResults = results,
+                    isLoading = false
+                )
+            } catch (e: Exception) {
+                uiState = uiState.copy(
+                    error = "Search failed: ${e.message}",
+                    isLoading = false
+                )
+            }
+        }
+    }
+    
+    private fun searchFiles(directory: String, query: String): List<FileSystemItem> {
+        val results = mutableListOf<FileSystemItem>()
+        val dir = File(directory)
+        
+        try {
+            dir.walkTopDown()
+                .filter { file ->
+                    file.name.contains(query, ignoreCase = true) &&
+                    (uiState.showHiddenFiles || !file.name.startsWith("."))
+                }
+                .take(100) // Limit results for performance
+                .forEach { file ->
+                    results.add(
+                        FileSystemItem(
+                            path = file.absolutePath,
+                            name = file.name,
+                            isDirectory = file.isDirectory,
+                            size = if (file.isFile) file.length() else 0L,
+                            lastModified = Date(file.lastModified())
+                        )
+                    )
+                }
+        } catch (e: SecurityException) {
+            // Handle permission denied
+        }
+        
+        return results.sortedBy { it.name }
+    }
+    
+    // Sharing functionality
+    fun shareFile(fileItem: FileSystemItem) {
+        SharingUtils.shareFile(context, fileItem)
+    }
+    
+    fun shareSelectedFiles() {
+        if (uiState.selectedItems.isNotEmpty()) {
+            SharingUtils.shareFiles(context, uiState.selectedItems)
+        }
+    }
+    
+    fun shareFiles(fileItems: List<FileSystemItem>) {
+        SharingUtils.shareFiles(context, fileItems)
     }
 
     fun navigateToRoot() {
@@ -601,5 +675,8 @@ data class FileExplorerUiState(
     val sortOption: FileSortOption = FileSortOption.NAME_ASC,
     val showHiddenFiles: Boolean = false,
     val isLoading: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val searchQuery: String = "",
+    val isSearchMode: Boolean = false,
+    val searchResults: List<FileSystemItem> = emptyList()
 )

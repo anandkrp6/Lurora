@@ -23,6 +23,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import kotlin.math.log10
+import kotlin.math.pow
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -650,10 +652,10 @@ private fun formatFileSize(bytes: Long): String {
     if (bytes <= 0) return "0 B"
     
     val units = arrayOf("B", "KB", "MB", "GB")
-    val digitGroups = (Math.log10(bytes.toDouble()) / Math.log10(1024.0)).toInt()
+    val digitGroups = (log10(bytes.toDouble()) / log10(1024.0)).toInt()
     
     return "%.1f %s".format(
-        bytes / Math.pow(1024.0, digitGroups.toDouble()),
+        bytes / 1024.0.pow(digitGroups.toDouble()),
         units[digitGroups]
     )
 }

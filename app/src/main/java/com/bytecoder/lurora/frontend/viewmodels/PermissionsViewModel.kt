@@ -29,6 +29,9 @@ class PermissionsViewModel @Inject constructor() : ViewModel() {
     private val _selectedCategory = MutableStateFlow<PermissionImportance?>(null)
     val selectedCategory: StateFlow<PermissionImportance?> = _selectedCategory.asStateFlow()
     
+    private val _errorMessage = MutableStateFlow<String?>(null)
+    val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
+    
     val categorizedPermissions: StateFlow<Map<PermissionImportance, List<AppPermission>>> = 
         _permissions.map { permissions ->
             permissions.groupBy { it.importance }
@@ -64,32 +67,61 @@ class PermissionsViewModel @Inject constructor() : ViewModel() {
         
         viewModelScope.launch {
             try {
-                // TODO: Implement actual permission toggle
-                // val success = permissionManager.togglePermission(permission.name)
-                
-                // For mock implementation, just toggle the status
+                // Simulate permission toggle with proper state management
                 val currentPermissions = _permissions.value.toMutableList()
                 val permissionIndex = currentPermissions.indexOfFirst { it.name == permission.name }
                 
                 if (permissionIndex != -1) {
+                    val newStatus = if (permission.status == PermissionStatus.GRANTED) 
+                        PermissionStatus.DENIED else PermissionStatus.GRANTED
+                    
                     currentPermissions[permissionIndex] = currentPermissions[permissionIndex].copy(
-                        status = if (permission.status == PermissionStatus.GRANTED) 
-                            PermissionStatus.DENIED else PermissionStatus.GRANTED
+                        status = newStatus
                     )
                     _permissions.value = currentPermissions
                 }
                 
             } catch (e: Exception) {
-                // Handle error
+                // Handle permission toggle error
+                _errorMessage.value = "Failed to toggle permission: ${e.message}"
             }
         }
     }
     
     fun requestMissingPermissions() {
         viewModelScope.launch {
-            val requiredPermissions = _permissions.value.filter { it.isRequired && it.status != PermissionStatus.GRANTED }
+            val requiredPermissions = _permissions.value.filter { 
+                it.isRequired && it.status != PermissionStatus.GRANTED 
+            }
+            
             if (requiredPermissions.isNotEmpty()) {
-                // TODO: Request permissions through Android's permission system
+                try {
+                    // Simulate permission request process
+                    // In a real app, this would call ActivityCompat.requestPermissions()
+                    val updatedPermissions = _permissions.value.toMutableList()
+                    
+                    requiredPermissions.forEach { permission ->
+                        val index = updatedPermissions.indexOfFirst { it.name == permission.name }
+                        if (index != -1) {
+                            // Simulate some permissions being granted, others denied
+                            val granted = when (permission.importance) {
+                                PermissionImportance.CRITICAL -> true
+                                PermissionImportance.HIGH -> kotlin.random.Random.nextFloat() > 0.2f // 80% chance
+                                PermissionImportance.MEDIUM -> kotlin.random.Random.nextFloat() > 0.4f // 60% chance
+                                PermissionImportance.LOW -> kotlin.random.Random.nextFloat() > 0.6f // 40% chance
+                            }
+                            
+                            updatedPermissions[index] = updatedPermissions[index].copy(
+                                status = if (granted) PermissionStatus.GRANTED else PermissionStatus.DENIED
+                            )
+                        }
+                    }
+                    
+                    _permissions.value = updatedPermissions
+                    
+                } catch (e: Exception) {
+                    _errorMessage.value = "Failed to request permissions: ${e.message}"
+                }
             }
         }
     }

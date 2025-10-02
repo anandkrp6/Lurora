@@ -3,12 +3,14 @@ package com.bytecoder.lurora.frontend.viewmodels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.bytecoder.lurora.backend.models.*
+import com.bytecoder.lurora.backend.services.DownloadManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.util.Date
 import javax.inject.Inject
 import kotlin.random.Random
+import com.bytecoder.lurora.backend.repositories.SettingsRepository
 
 /**
  * ViewModel for Downloads screen
@@ -16,8 +18,8 @@ import kotlin.random.Random
  */
 @HiltViewModel
 class DownloadsViewModel @Inject constructor(
-    // TODO: Inject download manager service
-    // private val downloadManager: DownloadManager
+    private val downloadManager: DownloadManager,
+    private val settingsRepository: SettingsRepository
 ) : ViewModel() {
     
     // State flows for UI
@@ -57,58 +59,66 @@ class DownloadsViewModel @Inject constructor(
     // Download management
     fun loadDownloads() {
         viewModelScope.launch {
-            // TODO: Replace with actual service call
-            // val downloads = downloadManager.getAllDownloads()
-            val mockDownloads = generateMockDownloads()
-            _downloadItems.value = applySorting(mockDownloads)
+            downloadManager.getAllDownloads().collect { downloads ->
+                _downloadItems.value = applySorting(downloads)
+            }
         }
     }
     
     fun startDownload(url: String, title: String, platform: String) {
         viewModelScope.launch {
-            // TODO: Implement actual download start
-            // downloadManager.startDownload(url, title, platform)
-            loadDownloads()
+            downloadManager.startDownload(url, title, platform)
+                .onSuccess { downloadId ->
+                    loadDownloads()
+                }
+                .onFailure { error ->
+                    // Handle error - could emit to an error state
+                }
         }
     }
     
     fun pauseDownload(downloadId: String) {
         viewModelScope.launch {
-            // TODO: Implement actual pause
-            // downloadManager.pauseDownload(downloadId)
-            updateDownloadStatus(downloadId, DownloadStatus.PAUSED)
+            downloadManager.pauseDownload(downloadId)
+                .onSuccess {
+                    loadDownloads()
+                }
         }
     }
     
     fun resumeDownload(downloadId: String) {
         viewModelScope.launch {
-            // TODO: Implement actual resume
-            // downloadManager.resumeDownload(downloadId)
-            updateDownloadStatus(downloadId, DownloadStatus.IN_PROGRESS)
+            downloadManager.resumeDownload(downloadId)
+                .onSuccess {
+                    loadDownloads()
+                }
         }
     }
     
     fun cancelDownload(downloadId: String) {
         viewModelScope.launch {
-            // TODO: Implement actual cancel
-            // downloadManager.cancelDownload(downloadId)
-            updateDownloadStatus(downloadId, DownloadStatus.CANCELLED)
+            downloadManager.cancelDownload(downloadId)
+                .onSuccess {
+                    loadDownloads()
+                }
         }
     }
     
     fun retryDownload(downloadId: String) {
         viewModelScope.launch {
-            // TODO: Implement actual retry
-            // downloadManager.retryDownload(downloadId)
-            updateDownloadStatus(downloadId, DownloadStatus.QUEUED)
+            downloadManager.retryDownload(downloadId)
+                .onSuccess {
+                    loadDownloads()
+                }
         }
     }
     
     fun deleteDownload(downloadId: String) {
         viewModelScope.launch {
-            // TODO: Implement actual delete with file cleanup
-            // downloadManager.deleteDownload(downloadId)
-            _downloadItems.value = _downloadItems.value.filter { it.id != downloadId }
+            downloadManager.deleteDownload(downloadId)
+                .onSuccess {
+                    loadDownloads()
+                }
         }
     }
     
@@ -221,22 +231,17 @@ class DownloadsViewModel @Inject constructor(
     // Storage management
     private fun updateStorageInfo() {
         viewModelScope.launch {
-            // TODO: Implement actual storage info retrieval
-            // val info = storageManager.getStorageInfo()
-            val mockInfo = StorageInfo(
-                totalSpace = 64L * 1024 * 1024 * 1024, // 64GB
-                usedSpace = 45L * 1024 * 1024 * 1024,   // 45GB
-                availableSpace = 19L * 1024 * 1024 * 1024 // 19GB
-            )
-            _storageInfo.value = mockInfo
+            val info = downloadManager.getStorageInfo()
+            _storageInfo.value = info
         }
     }
     
     // Settings management
     fun updateSettings(settings: DownloadSettings) {
         _downloadSettings.value = settings
-        // TODO: Persist settings
-        // settingsRepository.saveDownloadSettings(settings)
+        viewModelScope.launch {
+            settingsRepository.saveDownloadSettings(settings)
+        }
     }
     
     // Progress tracking (would be called by download service)
@@ -283,7 +288,7 @@ class DownloadsViewModel @Inject constructor(
                 fileSize = fileSize,
                 downloadedSize = downloadedSize,
                 downloadSpeed = if (status == DownloadStatus.IN_PROGRESS) Random.nextLong(100L * 1024, 5L * 1024 * 1024) else 0L,
-                eta = if (status == DownloadStatus.IN_PROGRESS) ((fileSize - downloadedSize) / 1024 / 1024).coerceAtMost(3600) else 0L,
+                eta = if (status == DownloadStatus.IN_PROGRESS) ((fileSize - downloadedSize) / (1024L * 1024L)).coerceAtMost(3600L) else 0L,
                 status = status,
                 downloadStarted = Date(System.currentTimeMillis() - (i * 24 * 60 * 60 * 1000L)),
                 downloadPath = "/storage/emulated/0/Lurora/Downloads/Video_${i}.${fileType}",
