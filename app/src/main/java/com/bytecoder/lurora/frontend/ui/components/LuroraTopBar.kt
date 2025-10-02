@@ -78,7 +78,7 @@ fun LuroraTopBar(
                         )
                     }
                     
-                    // Sort Icon (only for tabs that support sorting)
+                    // Sort Icon
                     if (NavigationHelper.getSortOptionsForTab(currentTab).isNotEmpty()) {
                         IconButton(onClick = onSortClick) {
                             Icon(
