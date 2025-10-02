@@ -49,12 +49,10 @@ class OnboardingActivity : ComponentActivity() {
                     viewModel.onNavigationEventHandled()
                 }
                 is OnboardingNavigationEvent.NavigateToPermissions -> {
-                    // Handle permission flow if needed
                     viewModel.onNavigationEventHandled()
                 }
-                null -> {
-                    // No navigation event
-                }
+
+                null -> TODO()
             }
         }
         

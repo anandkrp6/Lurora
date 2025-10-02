@@ -1,5 +1,6 @@
 package com.bytecoder.lurora
 
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -16,6 +17,7 @@ import com.bytecoder.lurora.storage.preferences.AppPreferencesManager
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
+@SuppressLint("CustomSplashScreen")
 @AndroidEntryPoint
 class SplashActivity : ComponentActivity() {
     
@@ -51,11 +53,9 @@ class SplashActivity : ComponentActivity() {
     private fun navigateToNextScreen(isFirstLaunch: Boolean, onboardingCompleted: Boolean) {
         val intent = when {
             isFirstLaunch && !onboardingCompleted -> {
-                // First launch - show onboarding
                 Intent(this, OnboardingActivity::class.java)
             }
             else -> {
-                // Not first launch or onboarding completed - go to main
                 Intent(this, MainActivity::class.java)
             }
         }
