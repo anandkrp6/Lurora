@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -17,6 +18,7 @@ import javax.inject.Inject
 /**
  * ViewModel for About screen with app information and external link handling
  */
+@RequiresApi(Build.VERSION_CODES.P)
 @HiltViewModel
 class AboutViewModel @Inject constructor(
     application: Application
@@ -35,6 +37,7 @@ class AboutViewModel @Inject constructor(
     /**
      * Load all app information
      */
+    @RequiresApi(Build.VERSION_CODES.P)
     private fun loadAppInformation() {
         viewModelScope.launch {
             val appInfo = getAppInfo()
@@ -54,6 +57,7 @@ class AboutViewModel @Inject constructor(
     /**
      * Get comprehensive app information
      */
+    @RequiresApi(Build.VERSION_CODES.P)
     private fun getAppInfo(): AppInfo {
         return try {
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)

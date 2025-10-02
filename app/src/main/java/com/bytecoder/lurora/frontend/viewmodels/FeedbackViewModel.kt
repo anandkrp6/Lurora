@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import android.net.Uri
 import android.os.Build
+import androidx.annotation.RequiresApi
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -39,6 +40,7 @@ class FeedbackViewModel @Inject constructor(
     /**
      * Submit feedback to Discord webhook
      */
+    @RequiresApi(Build.VERSION_CODES.P)
     fun submitFeedback(
         feedback: String,
         email: String? = null,
@@ -139,6 +141,7 @@ class FeedbackViewModel @Inject constructor(
     /**
      * Get system information
      */
+    @RequiresApi(Build.VERSION_CODES.P)
     private fun getSystemInfo(): SystemInfo {
         return SystemInfo(
             deviceModel = "${Build.MANUFACTURER} ${Build.MODEL}",
@@ -153,6 +156,7 @@ class FeedbackViewModel @Inject constructor(
     /**
      * Get app version
      */
+    @RequiresApi(Build.VERSION_CODES.P)
     private fun getAppVersion(): String {
         return try {
             val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
