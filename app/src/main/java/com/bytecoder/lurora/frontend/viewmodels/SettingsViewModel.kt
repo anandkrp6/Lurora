@@ -61,6 +61,7 @@ class SettingsViewModel @Inject constructor(
                 "background_audio" to true,
                 "audio_quality" to "High",
                 "equalizer" to false,
+                "music_player_display_mode" to "Both (Album Art & Equalizer)",
                 "crossfade" to false,
                 "gapless" to true,
                 

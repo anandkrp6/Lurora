@@ -583,6 +583,8 @@ private fun getSettingsCategories(): List<SettingsCategory> {
                 SettingItem("audio_quality", "Audio Quality", "Audio stream quality", SettingType.DROPDOWN, "High",
                     listOf("Low", "Medium", "High", "Lossless")),
                 SettingItem("equalizer", "Equalizer", "Enable audio equalizer", SettingType.SWITCH, false),
+                SettingItem("music_player_display_mode", "Display Mode", "What to show in full music player", SettingType.DROPDOWN, "Both (Album Art & Equalizer)",
+                    listOf("Album Art", "Equalizer", "Both (Album Art & Equalizer)")),
                 SettingItem("crossfade", "Crossfade", "Smooth transition between tracks", SettingType.SWITCH, false),
                 SettingItem("gapless", "Gapless Playback", "No gaps between tracks", SettingType.SWITCH, true)
             )

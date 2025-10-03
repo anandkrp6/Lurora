@@ -48,6 +48,10 @@ class MusicPlayerViewModel @Inject constructor(
     private val _equalizerBands = MutableStateFlow<List<EqualizerBand>>(getDefaultEqualizerBands())
     val equalizerBands: StateFlow<List<EqualizerBand>> = _equalizerBands.asStateFlow()
     
+    // Display mode state (managed externally)
+    private val _audioDisplayMode = MutableStateFlow("Both")
+    val audioDisplayMode: StateFlow<String> = _audioDisplayMode.asStateFlow()
+    
     private val _bassBoost = MutableStateFlow(AudioEffect.BassBoost(enabled = false, strength = 0f))
     val bassBoost: StateFlow<AudioEffect.BassBoost> = _bassBoost.asStateFlow()
     
@@ -198,6 +202,10 @@ class MusicPlayerViewModel @Inject constructor(
         if (_showLyrics.value) {
             _showLyrics.value = false
         }
+    }
+    
+    fun setDisplayMode(mode: String) {
+        _audioDisplayMode.value = mode
     }
     
     /**

@@ -105,9 +105,12 @@ fun MainScreen(
                 isFullPlayerVisible = isExpanded,
                 musicPlayerViewModel = musicPlayerViewModel,
                 onOpenFullPlayer = { 
-                    // Since we're using activities now, just launch the music player activity
-                    currentMediaItem?.let { 
-                        MusicPlayerActivity.startActivity(context, it)
+                    // Launch appropriate activity based on media type
+                    currentMediaItem?.let { mediaItem ->
+                        when (mediaItem.mediaType) {
+                            MediaType.AUDIO -> MusicPlayerActivity.startActivity(context, mediaItem)
+                            MediaType.VIDEO -> VideoPlayerActivity.startActivity(context, mediaItem)
+                        }
                     }
                 },
                 onClose = { 

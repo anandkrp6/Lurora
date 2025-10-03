@@ -37,6 +37,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.bytecoder.lurora.backend.models.*
 import com.bytecoder.lurora.frontend.viewmodels.MusicPlayerViewModel
+import com.bytecoder.lurora.frontend.viewmodels.SettingsViewModel
 
 /**
  * Main music player screen with Spotify-like interface
@@ -44,10 +45,26 @@ import com.bytecoder.lurora.frontend.viewmodels.MusicPlayerViewModel
 @Composable
 fun MusicPlayerScreen(
     modifier: Modifier = Modifier,
-    viewModel: MusicPlayerViewModel = hiltViewModel()
+    viewModel: MusicPlayerViewModel = hiltViewModel(),
+    settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
     val isExpanded by viewModel.isExpanded.collectAsStateWithLifecycle()
     val currentMediaItem by viewModel.currentMediaItem.collectAsStateWithLifecycle()
+    
+    // Initialize and observe display mode from settings
+    LaunchedEffect(Unit) {
+        val audioDisplayMode = settingsViewModel.getSetting("music_player_display_mode") as? String ?: "Both (Album Art & Equalizer)"
+        viewModel.setDisplayMode(audioDisplayMode)
+    }
+    
+    // Observe settings changes - re-read the setting when the UI recomposes
+    val currentSettingValue = remember(settingsViewModel) {
+        settingsViewModel.getSetting("music_player_display_mode") as? String ?: "Both (Album Art & Equalizer)"
+    }
+    
+    LaunchedEffect(currentSettingValue) {
+        viewModel.setDisplayMode(currentSettingValue)
+    }
     
     Box(modifier = modifier.fillMaxSize()) {
         // Mini player (collapsed state)
@@ -68,6 +85,7 @@ fun MusicPlayerScreen(
         ) {
             FullScreenMusicPlayer(
                 viewModel = viewModel,
+                settingsViewModel = settingsViewModel,
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -170,12 +188,14 @@ private fun MiniPlayer(
 @Composable
 private fun FullScreenMusicPlayer(
     viewModel: MusicPlayerViewModel,
+    settingsViewModel: SettingsViewModel,
     modifier: Modifier = Modifier
 ) {
     val currentMediaItem by viewModel.currentMediaItem.collectAsStateWithLifecycle()
     val playbackState by viewModel.playbackState.collectAsStateWithLifecycle()
     val showLyrics by viewModel.showLyrics.collectAsStateWithLifecycle()
     val showEnhancedEqualizer by viewModel.showEnhancedEqualizer.collectAsStateWithLifecycle()
+    val audioDisplayMode by viewModel.audioDisplayMode.collectAsStateWithLifecycle()
     
     currentMediaItem?.let { mediaItem ->
         Column(
@@ -221,31 +241,44 @@ private fun FullScreenMusicPlayer(
                     modifier = Modifier.weight(1f),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Album art with rotation animation or animated equalizer fallback
-                    val rotation by animateFloatAsState(
-                        targetValue = if (playbackState.isPlaying) 360f else 0f,
-                        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-                            androidx.compose.animation.core.tween(20000, easing = androidx.compose.animation.core.LinearEasing)
-                        ), label = ""
-                    )
-                    
-                    if (mediaItem.albumArtUri != null) {
-                        AsyncImage(
-                            model = mediaItem.albumArtUri,
-                            contentDescription = "Album Art",
-                            modifier = Modifier
-                                .size(300.dp)
-                                .clip(CircleShape)
-                                .rotate(rotation)
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
-                            contentScale = ContentScale.Crop
-                        )
-                    } else {
-                        // Animated equalizer bars fallback
-                        AnimatedEqualizerView(
-                            isPlaying = playbackState.isPlaying,
-                            modifier = Modifier.size(300.dp)
-                        )
+                    // Display based on audioDisplayMode
+                    Box(
+                        modifier = Modifier.size(300.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        when (audioDisplayMode) {
+                            "Album Art" -> {
+                                AlbumArtDisplay(
+                                    mediaItem = mediaItem,
+                                    isPlaying = playbackState.isPlaying,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                            "Equalizer" -> {
+                                AnimatedEqualizerView(
+                                    isPlaying = playbackState.isPlaying,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                            "Both", "Both (Album Art & Equalizer)" -> {
+                                // Album art as background
+                                AlbumArtDisplay(
+                                    mediaItem = mediaItem,
+                                    isPlaying = playbackState.isPlaying,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                // Equalizer overlay
+                                AnimatedEqualizerView(
+                                    isPlaying = playbackState.isPlaying,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .background(
+                                            MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+                                            CircleShape
+                                        )
+                                )
+                            }
+                        }
                     }
                     
                     Spacer(modifier = Modifier.height(32.dp))
@@ -783,6 +816,51 @@ private fun AnimatedEqualizerView(
             modifier = Modifier.size(48.dp),
             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
         )
+    }
+}
+
+/**
+ * Album art display with rotation animation
+ */
+@Composable
+private fun AlbumArtDisplay(
+    mediaItem: MediaItem,
+    isPlaying: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val rotation by animateFloatAsState(
+        targetValue = if (isPlaying) 360f else 0f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            androidx.compose.animation.core.tween(20000, easing = androidx.compose.animation.core.LinearEasing)
+        ), label = "AlbumArtRotation"
+    )
+    
+    if (mediaItem.albumArtUri != null) {
+        AsyncImage(
+            model = mediaItem.albumArtUri,
+            contentDescription = "Album Art",
+            modifier = modifier
+                .clip(CircleShape)
+                .rotate(rotation)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentScale = ContentScale.Crop
+        )
+    } else {
+        // Default album art placeholder
+        Box(
+            modifier = modifier
+                .clip(CircleShape)
+                .rotate(rotation)
+                .background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.MusicNote,
+                contentDescription = "Default Album Art",
+                modifier = Modifier.size(120.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
+        }
     }
 }
 
