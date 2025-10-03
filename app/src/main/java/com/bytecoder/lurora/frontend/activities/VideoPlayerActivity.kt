@@ -3,6 +3,7 @@ package com.bytecoder.lurora.frontend.activities
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -13,7 +14,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.bytecoder.lurora.backend.models.MediaItem
 import com.bytecoder.lurora.backend.models.MediaType
 import com.bytecoder.lurora.frontend.ui.screens.VideoPlayerScreen
@@ -88,14 +94,54 @@ class VideoPlayerActivity : ComponentActivity() {
         
         setContent {
             LuroraTheme {
+                val view = LocalView.current
+                val viewModel: VideoPlayerViewModel = hiltViewModel()
+                val isControlsVisible by viewModel.isControlsVisible.collectAsStateWithLifecycle()
+                
+                // Control status bar visibility based on controls visibility
+                LaunchedEffect(isControlsVisible) {
+                    val window = (view.context as ComponentActivity).window
+                    val windowInsetsController = WindowCompat.getInsetsController(window, view)
+                    
+                    if (isControlsVisible) {
+                        // Show system bars when controls are visible
+                        windowInsetsController.show(WindowInsetsCompat.Type.statusBars())
+                        windowInsetsController.show(WindowInsetsCompat.Type.navigationBars())
+                        windowInsetsController.systemBarsBehavior = 
+                            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    } else {
+                        // Hide system bars when controls are hidden for immersive experience
+                        windowInsetsController.hide(WindowInsetsCompat.Type.statusBars())
+                        windowInsetsController.hide(WindowInsetsCompat.Type.navigationBars())
+                        windowInsetsController.systemBarsBehavior = 
+                            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    }
+                }
+                
+                // Restore system bars when leaving the screen
+                DisposableEffect(Unit) {
+                    onDispose {
+                        val window = (view.context as ComponentActivity).window
+                        val windowInsetsController = WindowCompat.getInsetsController(window, view)
+                        // Restore system bars when activity is destroyed
+                        windowInsetsController.show(WindowInsetsCompat.Type.statusBars())
+                        windowInsetsController.show(WindowInsetsCompat.Type.navigationBars())
+                    }
+                }
+                
                 Surface(
                     modifier = Modifier
                         .fillMaxSize()
-                        .systemBarsPadding(),
+                        .then(
+                            // Only apply system bars padding when controls are visible
+                            if (isControlsVisible) {
+                                Modifier.systemBarsPadding()
+                            } else {
+                                Modifier
+                            }
+                        ),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    val viewModel: VideoPlayerViewModel = hiltViewModel()
-                    
                     // Play the media item when activity starts
                     LaunchedEffect(mediaItem) {
                         if (mediaItem != null) {
