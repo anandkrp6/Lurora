@@ -47,7 +47,8 @@ import com.bytecoder.lurora.frontend.viewmodels.SettingsViewModel
 fun MusicPlayerScreen(
     modifier: Modifier = Modifier,
     viewModel: MusicPlayerViewModel = hiltViewModel(),
-    settingsViewModel: SettingsViewModel = hiltViewModel()
+    settingsViewModel: SettingsViewModel = hiltViewModel(),
+    onBack: () -> Unit = {}
 ) {
     val isExpanded by viewModel.isExpanded.collectAsStateWithLifecycle()
     val currentMediaItem by viewModel.currentMediaItem.collectAsStateWithLifecycle()
@@ -87,6 +88,7 @@ fun MusicPlayerScreen(
             FullScreenMusicPlayer(
                 viewModel = viewModel,
                 settingsViewModel = settingsViewModel,
+                onBack = onBack,
                 modifier = Modifier.fillMaxSize()
             )
         }
@@ -190,6 +192,7 @@ private fun MiniPlayer(
 private fun FullScreenMusicPlayer(
     viewModel: MusicPlayerViewModel,
     settingsViewModel: SettingsViewModel,
+    onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val currentMediaItem by viewModel.currentMediaItem.collectAsStateWithLifecycle()
@@ -213,7 +216,7 @@ private fun FullScreenMusicPlayer(
         ) {
             // Top bar
             MusicPlayerTopBar(
-                onCollapsePlayer = { viewModel.collapsePlayer() },
+                onCollapsePlayer = onBack,
                 onShowQueue = { /* Show queue */ },
                 modifier = Modifier.fillMaxWidth()
             )

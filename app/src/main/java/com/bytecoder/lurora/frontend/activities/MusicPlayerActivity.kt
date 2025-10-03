@@ -106,7 +106,8 @@ class MusicPlayerActivity : ComponentActivity() {
                     
                     MusicPlayerScreen(
                         modifier = Modifier.fillMaxSize(),
-                        viewModel = viewModel
+                        viewModel = viewModel,
+                        onBack = { finish() }
                     )
                 }
             }
