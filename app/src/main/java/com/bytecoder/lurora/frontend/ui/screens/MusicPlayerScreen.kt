@@ -1,8 +1,10 @@
 package com.bytecoder.lurora.frontend.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.*
@@ -188,6 +190,7 @@ private fun MiniPlayer(
 /**
  * Full-screen music player
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun FullScreenMusicPlayer(
     viewModel: MusicPlayerViewModel,
@@ -200,6 +203,10 @@ private fun FullScreenMusicPlayer(
     val showLyrics by viewModel.showLyrics.collectAsStateWithLifecycle()
     val showEnhancedEqualizer by viewModel.showEnhancedEqualizer.collectAsStateWithLifecycle()
     val audioDisplayMode by viewModel.audioDisplayMode.collectAsStateWithLifecycle()
+    
+    // Bottom sheet state for more options
+    val bottomSheetState = rememberModalBottomSheetState()
+    var showMoreOptionsSheet by remember { mutableStateOf(false) }
     
     currentMediaItem?.let { mediaItem ->
         Column(
@@ -217,7 +224,7 @@ private fun FullScreenMusicPlayer(
             // Top bar
             MusicPlayerTopBar(
                 onCollapsePlayer = onBack,
-                onShowQueue = { /* Show queue */ },
+                onShowMoreOptions = { showMoreOptionsSheet = true },
                 modifier = Modifier.fillMaxWidth()
             )
             
@@ -245,59 +252,99 @@ private fun FullScreenMusicPlayer(
                     modifier = Modifier.weight(1f),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    // Display based on audioDisplayMode
-                    Box(
-                        modifier = Modifier.size(300.dp),
-                        contentAlignment = Alignment.Center
+                    // Visual Display Area - Square with rounded corners covering screen width
+                    Card(
+                        modifier = Modifier
+                            .padding(horizontal = 8.dp)
+                            .fillMaxWidth()
+                            .aspectRatio(1f),
+                        shape = RoundedCornerShape(24.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
                     ) {
-                        when (audioDisplayMode) {
-                            "Album Art" -> {
-                                AlbumArtDisplay(
-                                    mediaItem = mediaItem,
-                                    isPlaying = playbackState.isPlaying,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-                            "Equalizer" -> {
-                                AnimatedEqualizerView(
-                                    isPlaying = playbackState.isPlaying,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-                            "Both", "Both (Album Art & Equalizer)" -> {
-                                // Album art as background
-                                AlbumArtDisplay(
-                                    mediaItem = mediaItem,
-                                    isPlaying = playbackState.isPlaying,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                                // Equalizer overlay
-                                AnimatedEqualizerView(
-                                    isPlaying = playbackState.isPlaying,
-                                    modifier = Modifier
-                                        .fillMaxSize()
-                                        .background(
-                                            MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-                                            CircleShape
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(
+                                    Brush.radialGradient(
+                                        colors = listOf(
+                                            MaterialTheme.colorScheme.surface,
+                                            MaterialTheme.colorScheme.surfaceVariant
                                         )
-                                )
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            when (audioDisplayMode) {
+                                "Album Art" -> {
+                                    AlbumArtDisplay(
+                                        mediaItem = mediaItem,
+                                        isPlaying = playbackState.isPlaying,
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .clip(RoundedCornerShape(24.dp))
+                                    )
+                                }
+                                "Equalizer" -> {
+                                    AnimatedEqualizerView(
+                                        isPlaying = playbackState.isPlaying,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+                                "Both", "Both (Album Art & Equalizer)" -> {
+                                    // Switching between Album Art and Equalizer
+                                    var showAlbumArt by remember { mutableStateOf(true) }
+                                    
+                                    // Auto-switch every 5 seconds when playing
+                                    LaunchedEffect(playbackState.isPlaying) {
+                                        if (playbackState.isPlaying) {
+                                            while (playbackState.isPlaying) {
+                                                kotlinx.coroutines.delay(5000) // 5 seconds
+                                                showAlbumArt = !showAlbumArt
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Crossfade animation between the two views
+                                    Crossfade(
+                                        targetState = showAlbumArt,
+                                        animationSpec = tween(durationMillis = 800),
+                                        label = "Visual Display Switch"
+                                    ) { isShowingAlbumArt ->
+                                        if (isShowingAlbumArt) {
+                                            AlbumArtDisplay(
+                                                mediaItem = mediaItem,
+                                                isPlaying = playbackState.isPlaying,
+                                                modifier = Modifier
+                                                    .fillMaxSize()
+                                                    .clip(RoundedCornerShape(24.dp))
+                                            )
+                                        } else {
+                                            AnimatedEqualizerView(
+                                                isPlaying = playbackState.isPlaying,
+                                                modifier = Modifier.fillMaxSize()
+                                            )
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                     
                     Spacer(modifier = Modifier.height(32.dp))
-                    
-                    // Track information
-                    TrackInfo(
-                        mediaItem = mediaItem,
-                        isFavorite = viewModel.isFavorite(mediaItem),
-                        onToggleFavorite = { viewModel.toggleFavorite(mediaItem) },
-                        modifier = Modifier.fillMaxWidth()
-                    )
                 }
             }
             
             Spacer(modifier = Modifier.height(24.dp))
+            
+            // Compact Track Information Bar (above progress bar)
+            TrackInfoBar(
+                mediaItem = mediaItem,
+                isFavorite = viewModel.isFavorite(mediaItem),
+                onToggleFavorite = { viewModel.toggleFavorite(mediaItem) },
+                modifier = Modifier.fillMaxWidth()
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
             
             // Progress bar
             MusicProgressBar(
@@ -334,6 +381,24 @@ private fun FullScreenMusicPlayer(
                 modifier = Modifier.fillMaxWidth()
             )
         }
+        
+        // More Options Bottom Sheet
+        if (showMoreOptionsSheet) {
+            ModalBottomSheet(
+                onDismissRequest = { showMoreOptionsSheet = false },
+                sheetState = bottomSheetState
+            ) {
+                MoreOptionsBottomSheet(
+                    mediaItem = mediaItem,
+                    onDismiss = { showMoreOptionsSheet = false },
+                    onAudioSettings = { /* Navigate to audio settings */ },
+                    onSleepTimer = { /* Show sleep timer dialog */ },
+                    onShareTrack = { /* Share current track */ },
+                    onAddToPlaylist = { /* Show add to playlist dialog */ },
+                    onSongInfo = { /* Show song info dialog */ }
+                )
+            }
+        }
     }
 }
 
@@ -343,7 +408,7 @@ private fun FullScreenMusicPlayer(
 @Composable
 private fun MusicPlayerTopBar(
     onCollapsePlayer: () -> Unit,
-    onShowQueue: () -> Unit,
+    onShowMoreOptions: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -364,10 +429,10 @@ private fun MusicPlayerTopBar(
             fontWeight = FontWeight.Medium
         )
         
-        IconButton(onClick = onShowQueue) {
+        IconButton(onClick = onShowMoreOptions) {
             Icon(
-                imageVector = Icons.Default.QueueMusic,
-                contentDescription = "Show Queue"
+                imageVector = Icons.Default.MoreVert,
+                contentDescription = "More Options"
             )
         }
     }
@@ -437,6 +502,123 @@ private fun TrackInfo(
                 contentDescription = if (isFavorite) "Remove from Favorites" else "Add to Favorites",
                 tint = if (isFavorite) Color.Red else MaterialTheme.colorScheme.onSurface
             )
+        }
+    }
+}
+
+/**
+ * Compact track information bar with album art, song details, and favorite button
+ */
+@Composable
+private fun TrackInfoBar(
+    mediaItem: MediaItem,
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            // Album Art (leftmost)
+            Card(
+                modifier = Modifier.size(48.dp),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                mediaItem.albumArtUri?.let { uri ->
+                    AsyncImage(
+                        model = uri,
+                        contentDescription = "Album artwork",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                } ?: Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.MusicNote,
+                        contentDescription = "No artwork",
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            
+            // Song details (center, expandable)
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                // Song Title (larger, bold)
+                Text(
+                    text = mediaItem.title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                
+                // Artist and Album row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    // Artist Name (left, smaller, italic)
+                    mediaItem.artist?.let { artist ->
+                        Text(
+                            text = artist,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    
+                    // Album Name (right, smaller, italic)
+                    mediaItem.album?.let { album ->
+                        Text(
+                            text = album,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.End,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+            
+            // Favorite Button (rightmost)
+            IconButton(
+                onClick = onToggleFavorite,
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                    contentDescription = if (isFavorite) "Remove from Favorites" else "Add to Favorites",
+                    tint = if (isFavorite) Color.Red else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
         }
     }
 }
@@ -725,7 +907,7 @@ private fun AnimatedEqualizerView(
     isPlaying: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val numberOfBars = 24
+    val numberOfBars = 40 // Increased from 24 to 40 bars
     val barHeights = remember { mutableStateListOf<Float>() }
     val barColors = remember { mutableStateListOf<Color>() }
     val pausedColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
@@ -733,10 +915,10 @@ private fun AnimatedEqualizerView(
     // Initialize bars
     LaunchedEffect(Unit) {
         repeat(numberOfBars) { index ->
-            barHeights.add(0.1f + (index % 4) * 0.2f)
+            barHeights.add(0.1f + (index % 6) * 0.15f) // More varied initial heights
             barColors.add(
                 Color.hsl(
-                    hue = (index * 15f) % 360f,
+                    hue = (index * 9f) % 360f, // More color variation
                     saturation = 0.8f,
                     lightness = 0.6f
                 )
@@ -749,22 +931,22 @@ private fun AnimatedEqualizerView(
         if (isPlaying) {
             while (isPlaying) {
                 repeat(numberOfBars) { index ->
-                    // Random height animation
-                    barHeights[index] = kotlin.random.Random.nextFloat() * 0.8f + 0.2f
+                    // Random height animation with more range
+                    barHeights[index] = kotlin.random.Random.nextFloat() * 0.9f + 0.1f
                     
                     // Dynamic color change
                     barColors[index] = Color.hsl(
-                        hue = (kotlin.random.Random.nextFloat() * 60f + index * 15f) % 360f,
+                        hue = (kotlin.random.Random.nextFloat() * 60f + index * 9f) % 360f,
                         saturation = 0.7f + kotlin.random.Random.nextFloat() * 0.3f,
                         lightness = 0.5f + kotlin.random.Random.nextFloat() * 0.3f
                     )
                 }
-                kotlinx.coroutines.delay(150) // Update every 150ms
+                kotlinx.coroutines.delay(120) // Slightly faster updates for more bars
             }
         } else {
             // Static bars when paused - fade to monochrome
             repeat(numberOfBars) { index ->
-                barHeights[index] = 0.1f + (index % 4) * 0.1f
+                barHeights[index] = 0.1f + (index % 6) * 0.08f
                 barColors[index] = pausedColor
             }
         }
@@ -773,23 +955,23 @@ private fun AnimatedEqualizerView(
     Box(
         modifier = modifier
             .background(
-                MaterialTheme.colorScheme.surfaceVariant,
-                CircleShape
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                RoundedCornerShape(24.dp) // Match the parent container's rounded corners
             ),
         contentAlignment = Alignment.Center
     ) {
         Row(
             modifier = Modifier
-                .width(200.dp)
-                .height(120.dp),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                .fillMaxSize() // Use full available space
+                .padding(16.dp), // Add padding from edges
+            horizontalArrangement = Arrangement.spacedBy(3.dp), // Tighter spacing for more bars
             verticalAlignment = Alignment.CenterVertically
         ) {
             repeat(numberOfBars) { index ->
                 val animatedHeight by animateFloatAsState(
                     targetValue = if (index < barHeights.size) barHeights[index] else 0f,
                     animationSpec = androidx.compose.animation.core.tween(
-                        durationMillis = if (isPlaying) 150 else 500,
+                        durationMillis = if (isPlaying) 120 else 500,
                         easing = androidx.compose.animation.core.EaseInOutCubic
                     ), label = ""
                 )
@@ -801,24 +983,27 @@ private fun AnimatedEqualizerView(
                     ), label = "EqualizerBarColor"
                 )
                 
+                // Calculate dynamic bar width based on available space
+                val maxBarHeight = 250.dp // Increased from 120dp for bigger display area
+                
                 Box(
                     modifier = Modifier
-                        .width(6.dp)
-                        .height((120.dp.value * animatedHeight).dp)
+                        .weight(1f) // Use equal weight for all bars to fill width
+                        .height((maxBarHeight.value * animatedHeight).dp)
                         .background(
                             animatedColor,
-                            RoundedCornerShape(3.dp)
+                            RoundedCornerShape(4.dp) // Slightly larger corner radius
                         )
                 )
             }
         }
         
-        // Center icon
+        // Center icon - made smaller relative to the bigger area
         Icon(
             imageVector = if (isPlaying) Icons.Default.MusicNote else Icons.Default.MusicOff,
             contentDescription = null,
-            modifier = Modifier.size(48.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            modifier = Modifier.size(64.dp), // Increased from 48dp
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
         )
     }
 }
@@ -1116,6 +1301,184 @@ private fun FrequencyResponseDisplay(
                 ),
                 topLeft = androidx.compose.ui.geometry.Offset(left, top),
                 size = androidx.compose.ui.geometry.Size(barWidth * 0.8f, barHeight)
+            )
+        }
+    }
+}
+
+/**
+ * More Options Bottom Sheet with various player actions
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MoreOptionsBottomSheet(
+    mediaItem: MediaItem,
+    onDismiss: () -> Unit,
+    onAudioSettings: () -> Unit,
+    onSleepTimer: () -> Unit,
+    onShareTrack: () -> Unit,
+    onAddToPlaylist: () -> Unit,
+    onSongInfo: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+    ) {
+        // Handle bar
+        Box(
+            modifier = Modifier
+                .width(40.dp)
+                .height(4.dp)
+                .background(
+                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                    RoundedCornerShape(2.dp)
+                )
+                .align(Alignment.CenterHorizontally)
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Title
+        Text(
+            text = "More Options",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        
+        // Current track info
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 24.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            MediaThumbnailImage(
+                mediaItem = mediaItem,
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(8.dp)),
+                contentScale = ContentScale.Crop,
+                fallbackIconSize = 24.dp
+            )
+            
+            Spacer(modifier = Modifier.width(12.dp))
+            
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = mediaItem.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                mediaItem.artist?.let { artist ->
+                    Text(
+                        text = artist,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        }
+        
+        // Options list
+        MoreOptionItem(
+            icon = Icons.Default.Settings,
+            title = "Audio Settings",
+            subtitle = "Equalizer, sound effects",
+            onClick = {
+                onAudioSettings()
+                onDismiss()
+            }
+        )
+        
+        MoreOptionItem(
+            icon = Icons.Default.Timer,
+            title = "Sleep Timer",
+            subtitle = "Auto-stop music playback",
+            onClick = {
+                onSleepTimer()
+                onDismiss()
+            }
+        )
+        
+        MoreOptionItem(
+            icon = Icons.Default.Share,
+            title = "Share Track",
+            subtitle = "Share this song with others",
+            onClick = {
+                onShareTrack()
+                onDismiss()
+            }
+        )
+        
+        MoreOptionItem(
+            icon = Icons.Default.PlaylistAdd,
+            title = "Add to Playlist",
+            subtitle = "Save to your playlists",
+            onClick = {
+                onAddToPlaylist()
+                onDismiss()
+            }
+        )
+        
+        MoreOptionItem(
+            icon = Icons.Default.Info,
+            title = "Song Info",
+            subtitle = "View detailed track information",
+            onClick = {
+                onSongInfo()
+                onDismiss()
+            }
+        )
+        
+        // Bottom padding for safe area
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+/**
+ * Individual option item in the bottom sheet
+ */
+@Composable
+private fun MoreOptionItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = title,
+            modifier = Modifier.size(24.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        
+        Spacer(modifier = Modifier.width(16.dp))
+        
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
