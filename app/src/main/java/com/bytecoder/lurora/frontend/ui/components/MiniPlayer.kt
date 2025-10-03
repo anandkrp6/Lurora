@@ -330,13 +330,6 @@ private fun MiniScreen(
                             else -> MiniEqualizerDisplay(playbackState.isPlaying, modifier = Modifier.fillMaxSize())
                         }
                     }
-                    // Backward compatibility
-                    "Both" -> {
-                        when (currentDisplay) {
-                            0 -> AlbumArtDisplay(mediaItem, modifier = Modifier.fillMaxSize())
-                            else -> MiniEqualizerDisplay(playbackState.isPlaying, modifier = Modifier.fillMaxSize())
-                        }
-                    }
                 }
             }
             MediaType.VIDEO -> {
@@ -345,14 +338,6 @@ private fun MiniScreen(
                     "Thumbnail" -> AlbumArtDisplay(mediaItem, modifier = Modifier.fillMaxSize())
                     "Equalizer" -> MiniEqualizerDisplay(playbackState.isPlaying, modifier = Modifier.fillMaxSize())
                     "Both (Thumbnail & Equalizer)" -> {
-                        when (currentDisplay) {
-                            0 -> AlbumArtDisplay(mediaItem, modifier = Modifier.fillMaxSize())
-                            1 -> MiniEqualizerDisplay(playbackState.isPlaying, modifier = Modifier.fillMaxSize())
-                            else -> VideoMiniDisplay(mediaItem, playbackState, videoPlayerViewModel, modifier = Modifier.fillMaxSize())
-                        }
-                    }
-                    // Backward compatibility
-                    "Both" -> {
                         when (currentDisplay) {
                             0 -> AlbumArtDisplay(mediaItem, modifier = Modifier.fillMaxSize())
                             1 -> MiniEqualizerDisplay(playbackState.isPlaying, modifier = Modifier.fillMaxSize())
