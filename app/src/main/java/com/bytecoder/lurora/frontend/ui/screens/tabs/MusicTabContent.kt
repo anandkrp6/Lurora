@@ -35,6 +35,7 @@ import coil.compose.AsyncImage
 import com.bytecoder.lurora.frontend.navigation.*
 import com.bytecoder.lurora.frontend.viewmodels.MediaLibraryViewModel
 import com.bytecoder.lurora.backend.models.MediaItem
+import com.bytecoder.lurora.frontend.ui.components.MediaThumbnailImage
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -410,15 +411,20 @@ private fun MusicListItem(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Album art
-            AsyncImage(
-                model = audio.albumArtUri,
-                contentDescription = "Album art",
+            Box(
                 modifier = Modifier
                     .size(56.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentScale = ContentScale.Crop
-            )
+                contentAlignment = Alignment.Center
+            ) {
+                MediaThumbnailImage(
+                    mediaItem = audio,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    fallbackIconSize = 24.dp
+                )
+            }
             
             // Content
             Column(
@@ -499,15 +505,20 @@ private fun MusicGridItem(
                     .fillMaxWidth()
                     .aspectRatio(1f)
             ) {
-                AsyncImage(
-                    model = audio.albumArtUri,
-                    contentDescription = "Album art",
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentScale = ContentScale.Crop
-                )
+                    contentAlignment = Alignment.Center
+                ) {
+                    MediaThumbnailImage(
+                        mediaItem = audio,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        fallbackIconSize = 48.dp
+                    )
+                }
                 
                 // Play icon overlay
                 Icon(

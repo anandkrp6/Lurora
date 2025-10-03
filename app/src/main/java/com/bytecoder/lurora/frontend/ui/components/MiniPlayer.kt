@@ -56,9 +56,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
 import com.bytecoder.lurora.backend.models.MediaItem
 import com.bytecoder.lurora.backend.models.MediaType
 import com.bytecoder.lurora.backend.models.PlaybackState
+import com.bytecoder.lurora.frontend.ui.components.MediaThumbnailImage
 import com.bytecoder.lurora.frontend.viewmodels.MusicPlayerViewModel
 import com.bytecoder.lurora.frontend.viewmodels.VideoPlayerViewModel
 import com.bytecoder.lurora.frontend.viewmodels.SettingsViewModel
@@ -370,26 +373,16 @@ private fun AlbumArtDisplay(
     mediaItem: MediaItem,
     modifier: Modifier = Modifier
 ) {
-    if (mediaItem.albumArtUri != null) {
-        AsyncImage(
-            model = mediaItem.albumArtUri,
-            contentDescription = "Album Art",
-            modifier = modifier,
-            contentScale = ContentScale.Crop
+    Box(
+        modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center
+    ) {
+        MediaThumbnailImage(
+            mediaItem = mediaItem,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+            fallbackIconSize = 24.dp
         )
-    } else {
-        // Fallback when no album art
-        Box(
-            modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.MusicNote,
-                contentDescription = "Music",
-                modifier = Modifier.size(24.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-            )
-        }
     }
 }
 
@@ -414,14 +407,13 @@ private fun VideoMiniDisplay(
                 contentAlignment = Alignment.Center
             ) {
                 // Background: Show current video frame or thumbnail
-                if (mediaItem.albumArtUri != null) {
-                    AsyncImage(
-                        model = mediaItem.albumArtUri,
-                        contentDescription = "Video Preview",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                }
+                MediaThumbnailImage(
+                    mediaItem = mediaItem,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    fallbackIconSize = 48.dp,
+                    showLoading = false // Don't show loading in mini player
+                )
                 
                 // Live video indicator when playing
                 if (playbackState.isPlaying) {
@@ -506,21 +498,13 @@ private fun VideoMiniDisplay(
             }
         } else {
             // Fallback when no video player available - show thumbnail
-            if (mediaItem.albumArtUri != null) {
-                AsyncImage(
-                    model = mediaItem.albumArtUri,
-                    contentDescription = "Video Thumbnail",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Icon(
-                    imageVector = Icons.Default.PlayArrow,
-                    contentDescription = "Video",
-                    modifier = Modifier.size(24.dp),
-                    tint = Color.White.copy(alpha = 0.8f)
-                )
-            }
+            MediaThumbnailImage(
+                mediaItem = mediaItem,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+                fallbackIconSize = 24.dp,
+                showLoading = false
+            )
             
             // Play button overlay
             Surface(
@@ -720,23 +704,12 @@ private fun VideoMiniPreview(
     ) {
         // In a real implementation, this would be an actual video surface
         // For now, show a placeholder with video info
-        AsyncImage(
-            model = mediaItem.albumArtUri,
-            contentDescription = "Video Preview",
+        MediaThumbnailImage(
+            mediaItem = mediaItem,
             modifier = Modifier.fillMaxSize(),
             contentScale = ContentScale.Crop,
-            placeholder = null,
-            fallback = null,
-            error = null
+            fallbackIconSize = 32.dp
         )
-        
-        // Fallback to equalizer if no thumbnail
-        if (mediaItem.albumArtUri == null) {
-            MiniEqualizerView(
-                isPlaying = playbackState.isPlaying,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
         
         // Play state overlay for video
         if (!playbackState.isPlaying) {
@@ -762,24 +735,13 @@ private fun AudioMiniPreview(
             .fillMaxSize()
             .clip(RoundedCornerShape(8.dp))
     ) {
-        if (mediaItem.albumArtUri != null) {
-            // Show album art thumbnail
-            AsyncImage(
-                model = mediaItem.albumArtUri,
-                contentDescription = "Album Art",
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-                placeholder = null,
-                fallback = null,
-                error = null
-            )
-        } else {
-            // Show animated equalizer as fallback
-            MiniEqualizerView(
-                isPlaying = playbackState.isPlaying,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
+        // Show album art thumbnail with equalizer fallback
+        MediaThumbnailImage(
+            mediaItem = mediaItem,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+            fallbackIconSize = 32.dp
+        )
     }
 }
 

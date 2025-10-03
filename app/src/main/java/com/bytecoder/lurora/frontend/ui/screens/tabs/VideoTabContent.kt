@@ -32,9 +32,12 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalContext
 import com.bytecoder.lurora.frontend.navigation.*
 import com.bytecoder.lurora.frontend.viewmodels.MediaLibraryViewModel
 import com.bytecoder.lurora.backend.models.MediaItem
+import com.bytecoder.lurora.frontend.ui.components.MediaThumbnailImage
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -413,15 +416,20 @@ private fun VideoListItem(
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // Thumbnail
-            AsyncImage(
-                model = video.albumArtUri,
-                contentDescription = "Video thumbnail",
+            Box(
                 modifier = Modifier
                     .size(80.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentScale = ContentScale.Crop
-            )
+                contentAlignment = Alignment.Center
+            ) {
+                MediaThumbnailImage(
+                    mediaItem = video,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    fallbackIconSize = 32.dp
+                )
+            }
             
             // Content
             Column(
@@ -500,15 +508,20 @@ private fun VideoGridItem(
                     .fillMaxWidth()
                     .aspectRatio(16f / 9f)
             ) {
-                AsyncImage(
-                    model = video.albumArtUri,
-                    contentDescription = "Video thumbnail",
+                Box(
                     modifier = Modifier
                         .fillMaxSize()
                         .clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
                         .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentScale = ContentScale.Crop
-                )
+                    contentAlignment = Alignment.Center
+                ) {
+                    MediaThumbnailImage(
+                        mediaItem = video,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        fallbackIconSize = 48.dp
+                    )
+                }
                 
                 // Duration badge
                 Card(

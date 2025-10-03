@@ -6,7 +6,9 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
@@ -53,6 +55,9 @@ class VideoPlayerActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        // Enable edge-to-edge display
+        enableEdgeToEdge()
+        
         // Get the media item from intent
         val bundle = intent.getBundleExtra(EXTRA_MEDIA_ITEM_BUNDLE)
         val mediaItem = bundle?.let { b ->
@@ -84,7 +89,9 @@ class VideoPlayerActivity : ComponentActivity() {
         setContent {
             LuroraTheme {
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .systemBarsPadding(),
                     color = MaterialTheme.colorScheme.background
                 ) {
                     val viewModel: VideoPlayerViewModel = hiltViewModel()

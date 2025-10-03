@@ -26,6 +26,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.bytecoder.lurora.backend.models.*
+import com.bytecoder.lurora.frontend.ui.components.MediaThumbnailImage
 import com.bytecoder.lurora.frontend.viewmodels.HistoryViewModel
 import java.text.SimpleDateFormat
 import java.util.*
@@ -295,15 +296,20 @@ private fun HistoryItemCard(
             }
             
             // Thumbnail
-            AsyncImage(
-                model = entry.mediaItem.albumArtUri ?: Icons.Default.MusicNote,
-                contentDescription = "Thumbnail",
+            Box(
                 modifier = Modifier
                     .size(64.dp)
                     .clip(RoundedCornerShape(8.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentScale = ContentScale.Crop
-            )
+                contentAlignment = Alignment.Center
+            ) {
+                MediaThumbnailImage(
+                    mediaItem = entry.mediaItem,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    fallbackIconSize = 24.dp
+                )
+            }
             
             // Content
             Column(

@@ -7,6 +7,7 @@ import android.net.Uri
 import android.provider.MediaStore
 import com.bytecoder.lurora.backend.database.*
 import com.bytecoder.lurora.backend.models.*
+import com.bytecoder.lurora.backend.utils.ThumbnailExtractor
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
@@ -20,7 +21,8 @@ import javax.inject.Singleton
 class MediaRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val mediaDao: MediaDao,
-    private val historyDao: HistoryDao
+    private val historyDao: HistoryDao,
+    private val thumbnailExtractor: ThumbnailExtractor
 ) {
 
     /**
@@ -158,18 +160,22 @@ class MediaRepository @Inject constructor(
                 val album = it.getString(albumColumn)
 
                 // Check if file exists and has supported extension
-                if (data.isNotEmpty() && File(data).exists()) {
+                if (data.isNotEmpty() && thumbnailExtractor.isFileAccessible(data)) {
                     val extension = File(data).extension.lowercase()
                     if (supportedExtensions.contains(extension)) {
+                        // Create proper file URI
+                        val videoUri = Uri.fromFile(File(data))
+                        
                         mediaItems.add(
                             MediaItem(
                                 id = id.toString(),
-                                uri = Uri.parse(data),
+                                uri = videoUri,
                                 title = title,
                                 artist = artist,
                                 album = album,
                                 duration = duration,
                                 mediaType = MediaType.VIDEO,
+                                albumArtUri = null, // Will be loaded asynchronously by UI
                                 mimeType = mimeType,
                                 size = size,
                                 dateAdded = dateAdded,
@@ -246,21 +252,25 @@ class MediaRepository @Inject constructor(
                 val albumId = it.getLong(albumIdColumn)
 
                 // Check if file exists and has supported extension
-                if (data.isNotEmpty() && File(data).exists()) {
+                if (data.isNotEmpty() && thumbnailExtractor.isFileAccessible(data)) {
                     val extension = File(data).extension.lowercase()
                     if (supportedExtensions.contains(extension)) {
-                        // Get album art URI
-                        val albumArtUri = if (albumId != 0L) {
+                        // Try to get album art from MediaStore first
+                        val albumArtUri: Uri? = if (albumId != 0L) {
                             ContentUris.withAppendedId(
                                 Uri.parse("content://media/external/audio/albumart"),
                                 albumId
                             )
                         } else null
+                        // Note: If MediaStore album art doesn't exist, UI will extract from file
+
+                        // Create proper file URI
+                        val audioUri = Uri.fromFile(File(data))
 
                         mediaItems.add(
                             MediaItem(
                                 id = id.toString(),
-                                uri = Uri.parse(data),
+                                uri = audioUri,
                                 title = title,
                                 artist = artist,
                                 album = album,

@@ -36,6 +36,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.bytecoder.lurora.backend.models.*
+import com.bytecoder.lurora.frontend.ui.components.MediaThumbnailImage
 import com.bytecoder.lurora.frontend.viewmodels.MusicPlayerViewModel
 import com.bytecoder.lurora.frontend.viewmodels.SettingsViewModel
 
@@ -120,13 +121,13 @@ private fun MiniPlayer(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // Album art
-                AsyncImage(
-                    model = mediaItem.albumArtUri,
-                    contentDescription = "Album Art",
+                MediaThumbnailImage(
+                    mediaItem = mediaItem,
                     modifier = Modifier
                         .size(48.dp)
                         .clip(RoundedCornerShape(8.dp)),
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Crop,
+                    fallbackIconSize = 24.dp
                 )
                 
                 Spacer(modifier = Modifier.width(12.dp))
@@ -835,32 +836,19 @@ private fun AlbumArtDisplay(
         ), label = "AlbumArtRotation"
     )
     
-    if (mediaItem.albumArtUri != null) {
-        AsyncImage(
-            model = mediaItem.albumArtUri,
-            contentDescription = "Album Art",
-            modifier = modifier
-                .clip(CircleShape)
-                .rotate(rotation)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentScale = ContentScale.Crop
+    Box(
+        modifier = modifier
+            .clip(CircleShape)
+            .rotate(rotation)
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center
+    ) {
+        MediaThumbnailImage(
+            mediaItem = mediaItem,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+            fallbackIconSize = 120.dp
         )
-    } else {
-        // Default album art placeholder
-        Box(
-            modifier = modifier
-                .clip(CircleShape)
-                .rotate(rotation)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = Icons.Default.MusicNote,
-                contentDescription = "Default Album Art",
-                modifier = Modifier.size(120.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-            )
-        }
     }
 }
 
