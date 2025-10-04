@@ -5,9 +5,12 @@ import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -24,10 +27,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -41,6 +48,10 @@ import com.bytecoder.lurora.backend.models.*
 import com.bytecoder.lurora.frontend.ui.components.MediaThumbnailImage
 import com.bytecoder.lurora.frontend.viewmodels.MusicPlayerViewModel
 import com.bytecoder.lurora.frontend.viewmodels.SettingsViewModel
+import kotlin.math.sin
+import kotlin.math.PI
+import kotlin.math.abs
+import kotlin.math.exp
 
 /**
  * Main music player screen with Spotify-like interface
@@ -348,7 +359,7 @@ private fun FullScreenMusicPlayer(
             Spacer(modifier = Modifier.height(16.dp))
             
             // Progress bar
-            MusicProgressBar(
+            SquigglyProgressBar(
                 currentPosition = playbackState.currentPosition,
                 duration = playbackState.duration,
                 onSeekTo = { viewModel.seekTo(it) },
@@ -629,6 +640,141 @@ private fun TrackInfoBar(
 }
 
 /**
+ * Squiggly Progress Bar with wave animation
+ */
+@Composable
+private fun SquigglyProgressBar(
+    currentPosition: Long,
+    duration: Long,
+    onSeekTo: (Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val progress = if (duration > 0) currentPosition.toFloat() / duration else 0f
+    
+    // Animation for the wave effect
+    val waveOffset by animateFloatAsState(
+        targetValue = if (progress > 0) 1f else 0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2000),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Restart
+        ), label = "wave_animation"
+    )
+    
+    Column(modifier = modifier) {
+        // Custom squiggly progress bar
+        Canvas(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(24.dp)
+                .pointerInput(Unit) {
+                    detectTapGestures { offset ->
+                        val newProgress = offset.x / size.width
+                        val newPosition = (newProgress * duration).toLong()
+                        onSeekTo(newPosition.coerceIn(0, duration))
+                    }
+                }
+        ) {
+            val canvasWidth = size.width
+            val canvasHeight = size.height
+            val centerY = canvasHeight / 2
+            
+            // Track parameters
+            val trackHeight = 4.dp.toPx()
+            val squiggleAmplitude = 3.dp.toPx()
+            val squiggleFrequency = 0.02f
+            
+            // Background track (inactive)
+            val backgroundPath = Path()
+            backgroundPath.moveTo(0f, centerY)
+            
+            for (x in 0..canvasWidth.toInt() step 2) {
+                val xFloat = x.toFloat()
+                val wave = sin((xFloat * squiggleFrequency + waveOffset * 2 * PI).toFloat()) * squiggleAmplitude * 0.3f
+                backgroundPath.lineTo(xFloat, centerY + wave)
+            }
+            
+            drawPath(
+                path = backgroundPath,
+                color = Color.Gray.copy(alpha = 0.3f),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(
+                    width = trackHeight,
+                    cap = StrokeCap.Round
+                )
+            )
+            
+            // Active progress track
+            if (progress > 0) {
+                val progressWidth = canvasWidth * progress
+                val activePath = Path()
+                activePath.moveTo(0f, centerY)
+                
+                for (x in 0..progressWidth.toInt() step 2) {
+                    val xFloat = x.toFloat()
+                    val wave = sin((xFloat * squiggleFrequency + waveOffset * 2 * PI).toFloat()) * squiggleAmplitude
+                    activePath.lineTo(xFloat, centerY + wave)
+                }
+                
+                drawPath(
+                    path = activePath,
+                    brush = Brush.horizontalGradient(
+                        colors = listOf(
+                            Color(0xFF1DB954), // Spotify green
+                            Color(0xFF1ED760)
+                        )
+                    ),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(
+                        width = trackHeight,
+                        cap = StrokeCap.Round
+                    )
+                )
+                
+                // Progress thumb
+                val thumbX = progressWidth
+                val thumbY = centerY + sin((thumbX * squiggleFrequency + waveOffset * 2 * PI).toFloat()) * squiggleAmplitude
+                
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(
+                            Color.White,
+                            Color(0xFF1DB954)
+                        )
+                    ),
+                    radius = 8.dp.toPx(),
+                    center = Offset(thumbX, thumbY)
+                )
+                
+                // Inner thumb circle
+                drawCircle(
+                    color = Color.White,
+                    radius = 4.dp.toPx(),
+                    center = Offset(thumbX, thumbY)
+                )
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        // Time labels
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = formatTime(currentPosition),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
+            Text(
+                text = formatTime(duration),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/**
  * Music progress bar with time labels
  */
 @Composable
@@ -682,7 +828,7 @@ private fun MusicPlayerControls(
     onPlayPause: () -> Unit,
     onPrevious: () -> Unit,
     onNext: () -> Unit,
-    onRepeatModeChange: (RepeatMode) -> Unit,
+    onRepeatModeChange: (com.bytecoder.lurora.backend.models.RepeatMode) -> Unit,
     onShuffleToggle: () -> Unit,
     onSeekBackward: () -> Unit = {},
     onSeekForward: () -> Unit = {},
@@ -773,20 +919,20 @@ private fun MusicPlayerControls(
         // Repeat
         IconButton(onClick = {
             val nextMode = when (playbackState.repeatMode) {
-                RepeatMode.OFF -> RepeatMode.ALL
-                RepeatMode.ALL -> RepeatMode.ONE
-                RepeatMode.ONE -> RepeatMode.OFF
+                com.bytecoder.lurora.backend.models.RepeatMode.OFF -> com.bytecoder.lurora.backend.models.RepeatMode.ALL
+                com.bytecoder.lurora.backend.models.RepeatMode.ALL -> com.bytecoder.lurora.backend.models.RepeatMode.ONE
+                com.bytecoder.lurora.backend.models.RepeatMode.ONE -> com.bytecoder.lurora.backend.models.RepeatMode.OFF
             }
             onRepeatModeChange(nextMode)
         }) {
             Icon(
                 imageVector = when (playbackState.repeatMode) {
-                    RepeatMode.OFF -> Icons.Default.Repeat
-                    RepeatMode.ONE -> Icons.Default.RepeatOne
-                    RepeatMode.ALL -> Icons.Default.Repeat
+                    com.bytecoder.lurora.backend.models.RepeatMode.OFF -> Icons.Default.Repeat
+                    com.bytecoder.lurora.backend.models.RepeatMode.ONE -> Icons.Default.RepeatOne
+                    com.bytecoder.lurora.backend.models.RepeatMode.ALL -> Icons.Default.Repeat
                 },
                 contentDescription = "Repeat Mode",
-                tint = if (playbackState.repeatMode != RepeatMode.OFF) 
+                tint = if (playbackState.repeatMode != com.bytecoder.lurora.backend.models.RepeatMode.OFF) 
                     MaterialTheme.colorScheme.primary 
                 else 
                     MaterialTheme.colorScheme.onSurfaceVariant
@@ -947,7 +1093,12 @@ private fun AnimatedEqualizerView(
     // Initialize bars
     LaunchedEffect(Unit) {
         repeat(numberOfBars) { index ->
-            barHeights.add(0.1f + (index % 6) * 0.15f) // More varied initial heights
+            // Create bell curve pattern - tallest in middle, smaller towards edges
+            val center = numberOfBars / 2f
+            val distance = kotlin.math.abs(index - center) / center // Normalized distance from center (0-1)
+            val bellCurveHeight = 0.8f * kotlin.math.exp(-3.0 * distance * distance).toFloat() + 0.1f
+            
+            barHeights.add(bellCurveHeight)
             barColors.add(
                 Color.hsl(
                     hue = (index * 9f) % 360f, // More color variation
@@ -976,9 +1127,14 @@ private fun AnimatedEqualizerView(
                 kotlinx.coroutines.delay(120) // Slightly faster updates for more bars
             }
         } else {
-            // Static bars when paused - fade to monochrome
+            // Static bars when paused - fade to monochrome with bell curve pattern
             repeat(numberOfBars) { index ->
-                barHeights[index] = 0.1f + (index % 6) * 0.08f
+                // Create bell curve pattern - tallest in middle, smaller towards edges
+                val center = numberOfBars / 2f
+                val distance = kotlin.math.abs(index - center) / center // Normalized distance from center (0-1)
+                val bellCurveHeight = 0.6f * kotlin.math.exp(-3.0 * distance * distance).toFloat() + 0.1f
+                
+                barHeights[index] = bellCurveHeight
                 barColors[index] = pausedColor
             }
         }
