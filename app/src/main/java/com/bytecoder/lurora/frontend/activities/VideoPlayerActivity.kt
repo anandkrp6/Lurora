@@ -110,7 +110,7 @@ class VideoPlayerActivity : ComponentActivity() {
                     window.statusBarColor = android.graphics.Color.TRANSPARENT
                     window.navigationBarColor = android.graphics.Color.TRANSPARENT
                     
-                    // Set system bar appearance for dark theme (light content on dark background)
+                    // Always use light content (white text/icons) for video player since background is always black
                     windowInsetsController.isAppearanceLightStatusBars = false
                     windowInsetsController.isAppearanceLightNavigationBars = false
                     
