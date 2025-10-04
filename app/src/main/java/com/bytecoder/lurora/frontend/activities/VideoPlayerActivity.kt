@@ -2,6 +2,7 @@ package com.bytecoder.lurora.frontend.activities
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -9,11 +10,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -97,50 +98,61 @@ class VideoPlayerActivity : ComponentActivity() {
                 val view = LocalView.current
                 val viewModel: VideoPlayerViewModel = hiltViewModel()
                 val isControlsVisible by viewModel.isControlsVisible.collectAsStateWithLifecycle()
+                val isFullscreen by viewModel.isFullscreen.collectAsStateWithLifecycle()
                 
-                // Control status bar visibility based on controls visibility
-                LaunchedEffect(isControlsVisible) {
+                // Control status bar visibility and orientation based on controls visibility and fullscreen state
+                LaunchedEffect(isControlsVisible, isFullscreen) {
                     val window = (view.context as ComponentActivity).window
                     val windowInsetsController = WindowCompat.getInsetsController(window, view)
+                    val activity = view.context as ComponentActivity
                     
-                    if (isControlsVisible) {
-                        // Show system bars when controls are visible
-                        windowInsetsController.show(WindowInsetsCompat.Type.statusBars())
-                        windowInsetsController.show(WindowInsetsCompat.Type.navigationBars())
-                        windowInsetsController.systemBarsBehavior = 
-                            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    // Make system bars transparent for immersive experience
+                    window.statusBarColor = android.graphics.Color.TRANSPARENT
+                    window.navigationBarColor = android.graphics.Color.TRANSPARENT
+                    
+                    // Set system bar appearance for dark theme (light content on dark background)
+                    windowInsetsController.isAppearanceLightStatusBars = false
+                    windowInsetsController.isAppearanceLightNavigationBars = false
+                    
+                    // Handle orientation changes
+                    activity.requestedOrientation = if (isFullscreen) {
+                        ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
                     } else {
-                        // Hide system bars when controls are hidden for immersive experience
+                        ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                    }
+                    
+                    if (isFullscreen || !isControlsVisible) {
+                        // Hide system bars in fullscreen or when controls are hidden for immersive experience
                         windowInsetsController.hide(WindowInsetsCompat.Type.statusBars())
                         windowInsetsController.hide(WindowInsetsCompat.Type.navigationBars())
                         windowInsetsController.systemBarsBehavior = 
                             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    } else {
+                        // Show system bars when not in fullscreen and controls are visible
+                        // But keep them transparent so the theme shows through
+                        windowInsetsController.show(WindowInsetsCompat.Type.statusBars())
+                        windowInsetsController.show(WindowInsetsCompat.Type.navigationBars())
+                        windowInsetsController.systemBarsBehavior = 
+                            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
                     }
                 }
                 
-                // Restore system bars when leaving the screen
+                // Restore system bars and orientation when leaving the screen
                 DisposableEffect(Unit) {
                     onDispose {
                         val window = (view.context as ComponentActivity).window
                         val windowInsetsController = WindowCompat.getInsetsController(window, view)
-                        // Restore system bars when activity is destroyed
+                        val activity = view.context as ComponentActivity
+                        // Restore system bars and orientation when activity is destroyed
                         windowInsetsController.show(WindowInsetsCompat.Type.statusBars())
                         windowInsetsController.show(WindowInsetsCompat.Type.navigationBars())
+                        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
                     }
                 }
                 
                 Surface(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .then(
-                            // Only apply system bars padding when controls are visible
-                            if (isControlsVisible) {
-                                Modifier.systemBarsPadding()
-                            } else {
-                                Modifier
-                            }
-                        ),
-                    color = MaterialTheme.colorScheme.background
+                    modifier = Modifier.fillMaxSize(),
+                    color = Color.Black // Black background extends to system bars for immersive feel
                 ) {
                     // Play the media item when activity starts
                     LaunchedEffect(mediaItem) {

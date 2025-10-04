@@ -172,7 +172,7 @@ private fun VideoPlayerControls(
     modifier: Modifier = Modifier
 ) {
     Box(modifier = modifier) {
-        // Top controls
+        // Top controls - only apply status bar padding when not in fullscreen
         VideoPlayerTopBar(
             viewModel = viewModel,
             isFullscreen = isFullscreen,
@@ -180,9 +180,16 @@ private fun VideoPlayerControls(
             modifier = Modifier
                 .align(Alignment.TopCenter)
                 .fillMaxWidth()
+                .then(
+                    if (isFullscreen) {
+                        Modifier
+                    } else {
+                        Modifier.statusBarsPadding()
+                    }
+                )
         )
         
-        // Center play/pause button
+        // Only show loading indicator in center when buffering
         if (!playbackState.isPlaying && playbackState.isLoading) {
             CircularProgressIndicator(
                 modifier = Modifier
@@ -190,27 +197,9 @@ private fun VideoPlayerControls(
                     .size(64.dp),
                 color = MaterialTheme.colorScheme.primary
             )
-        } else {
-            IconButton(
-                onClick = { viewModel.togglePlayback() },
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .size(80.dp)
-                    .background(
-                        Color.Black.copy(alpha = 0.5f),
-                        CircleShape
-                    )
-            ) {
-                Icon(
-                    imageVector = if (playbackState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
-                    tint = Color.White,
-                    modifier = Modifier.size(40.dp)
-                )
-            }
         }
         
-        // Bottom controls
+        // Bottom controls - only apply navigation bar padding when not in fullscreen
         VideoPlayerBottomBar(
             viewModel = viewModel,
             playbackState = playbackState,
@@ -219,9 +208,16 @@ private fun VideoPlayerControls(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
+                .then(
+                    if (isFullscreen) {
+                        Modifier
+                    } else {
+                        Modifier.navigationBarsPadding()
+                    }
+                )
         )
         
-        // A-B Loop indicators
+        // A-B Loop indicators - position with status bar awareness
         if (abLoopStart != null || abLoopEnd != null) {
             ABLoopIndicators(
                 abLoopStart = abLoopStart,
@@ -229,7 +225,15 @@ private fun VideoPlayerControls(
                 duration = playbackState.duration,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(16.dp)
+                    .then(
+                        if (isFullscreen) {
+                            Modifier.padding(16.dp)
+                        } else {
+                            Modifier
+                                .statusBarsPadding()
+                                .padding(16.dp)
+                        }
+                    )
             )
         }
     }
@@ -280,7 +284,7 @@ private fun VideoPlayerTopBar(
             textAlign = TextAlign.Center
         )
         
-        // Queue button
+        // Queue button - moved to rightmost position
         var showQueue by remember { mutableStateOf(false) }
         
         Box {
@@ -292,58 +296,20 @@ private fun VideoPlayerTopBar(
                 )
             }
             
-            // Queue view modal
+            // Queue view modal - position below status bar
             if (showQueue) {
                 VideoQueueView(
                     viewModel = viewModel,
                     onDismiss = { showQueue = false },
-                    modifier = Modifier.align(Alignment.TopEnd)
-                )
-            }
-        }
-        
-        // Settings menu
-        var showMenu by remember { mutableStateOf(false) }
-        Box {
-            IconButton(onClick = { showMenu = true }) {
-                Icon(
-                    imageVector = Icons.Default.MoreVert,
-                    contentDescription = "More Options",
-                    tint = Color.White
-                )
-            }
-            
-            DropdownMenu(
-                expanded = showMenu,
-                onDismissRequest = { showMenu = false }
-            ) {
-                DropdownMenuItem(
-                    text = { Text("Playback Speed") },
-                    onClick = { 
-                        showMenu = false
-                        // Show speed selection dialog
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text("Audio Track") },
-                    onClick = { 
-                        showMenu = false
-                        // Show audio track selection
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text("Subtitles") },
-                    onClick = { 
-                        showMenu = false
-                        // Show subtitle selection
-                    }
-                )
-                DropdownMenuItem(
-                    text = { Text("Video Info") },
-                    onClick = { 
-                        showMenu = false
-                        // Show video information
-                    }
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .then(
+                            if (isFullscreen) {
+                                Modifier
+                            } else {
+                                Modifier.statusBarsPadding()
+                            }
+                        )
                 )
             }
         }
