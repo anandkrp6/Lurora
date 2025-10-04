@@ -6,6 +6,7 @@ import android.content.Context
 import com.bytecoder.lurora.backend.models.*
 import com.bytecoder.lurora.backend.player.LuroraMediaEngine
 import com.bytecoder.lurora.backend.services.LuroraMediaService
+import com.bytecoder.lurora.storage.preferences.AppPreferencesManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Job
@@ -20,6 +21,7 @@ import javax.inject.Inject
 @HiltViewModel
 class MusicPlayerViewModel @Inject constructor(
     private val mediaEngine: LuroraMediaEngine,
+    private val preferencesManager: AppPreferencesManager,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
     
@@ -75,6 +77,14 @@ class MusicPlayerViewModel @Inject constructor(
     
     private val _playlists = MutableStateFlow<List<Playlist>>(emptyList())
     val playlists: StateFlow<List<Playlist>> = _playlists.asStateFlow()
+    
+    // Seek buttons visibility preference
+    val showSeekButtons: StateFlow<Boolean> = preferencesManager.showSeekButtons
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = true
+        )
     
     private val _searchResults = MutableStateFlow<List<MediaItem>>(emptyList())
     val searchResults: StateFlow<List<MediaItem>> = _searchResults.asStateFlow()
@@ -206,6 +216,16 @@ class MusicPlayerViewModel @Inject constructor(
     
     fun setDisplayMode(mode: String) {
         _audioDisplayMode.value = mode
+    }
+    
+    /**
+     * Toggle seek buttons visibility
+     */
+    fun toggleSeekButtons() {
+        viewModelScope.launch {
+            val currentValue = showSeekButtons.value
+            preferencesManager.setShowSeekButtons(!currentValue)
+        }
     }
     
     /**

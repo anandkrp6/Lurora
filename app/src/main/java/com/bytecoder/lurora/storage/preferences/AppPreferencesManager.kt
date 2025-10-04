@@ -22,6 +22,7 @@ class AppPreferencesManager @Inject constructor(
         private val IS_FIRST_LAUNCH = booleanPreferencesKey("is_first_launch")
         private val ONBOARDING_COMPLETED = booleanPreferencesKey("onboarding_completed")
         private val THEME_MODE = booleanPreferencesKey("dark_theme")
+        private val SHOW_SEEK_BUTTONS = booleanPreferencesKey("show_seek_buttons")
     }
 
     /**
@@ -43,6 +44,13 @@ class AppPreferencesManager @Inject constructor(
      */
     val isDarkTheme: Flow<Boolean> = context.dataStore.data.map { preferences ->
         preferences[THEME_MODE] ?: false
+    }
+
+    /**
+     * Get seek buttons visibility preference
+     */
+    val showSeekButtons: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[SHOW_SEEK_BUTTONS] ?: true
     }
 
     /**
@@ -70,6 +78,15 @@ class AppPreferencesManager @Inject constructor(
     suspend fun setDarkTheme(isDark: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[THEME_MODE] = isDark
+        }
+    }
+
+    /**
+     * Set seek buttons visibility preference
+     */
+    suspend fun setShowSeekButtons(show: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[SHOW_SEEK_BUTTONS] = show
         }
     }
 

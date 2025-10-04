@@ -203,6 +203,7 @@ private fun FullScreenMusicPlayer(
     val showLyrics by viewModel.showLyrics.collectAsStateWithLifecycle()
     val showEnhancedEqualizer by viewModel.showEnhancedEqualizer.collectAsStateWithLifecycle()
     val audioDisplayMode by viewModel.audioDisplayMode.collectAsStateWithLifecycle()
+    val showSeekButtons by viewModel.showSeekButtons.collectAsStateWithLifecycle()
     
     // Bottom sheet state for more options
     val bottomSheetState = rememberModalBottomSheetState()
@@ -364,6 +365,9 @@ private fun FullScreenMusicPlayer(
                 onNext = { viewModel.seekToNext() },
                 onRepeatModeChange = { viewModel.setRepeatMode(it) },
                 onShuffleToggle = { viewModel.setShuffleMode(!playbackState.shuffleMode) },
+                onSeekBackward = { viewModel.seekTo(maxOf(0, playbackState.currentPosition - 15000)) }, // Seek backward 15 seconds
+                onSeekForward = { viewModel.seekTo(minOf(playbackState.duration, playbackState.currentPosition + 15000)) }, // Seek forward 15 seconds
+                showSeekButtons = showSeekButtons,
                 modifier = Modifier.fillMaxWidth()
             )
             
@@ -390,6 +394,7 @@ private fun FullScreenMusicPlayer(
             ) {
                 MoreOptionsBottomSheet(
                     mediaItem = mediaItem,
+                    viewModel = viewModel,
                     onDismiss = { showMoreOptionsSheet = false },
                     onAudioSettings = { /* Navigate to audio settings */ },
                     onSleepTimer = { /* Show sleep timer dialog */ },
@@ -679,6 +684,9 @@ private fun MusicPlayerControls(
     onNext: () -> Unit,
     onRepeatModeChange: (RepeatMode) -> Unit,
     onShuffleToggle: () -> Unit,
+    onSeekBackward: () -> Unit = {},
+    onSeekForward: () -> Unit = {},
+    showSeekButtons: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -707,6 +715,18 @@ private fun MusicPlayerControls(
             )
         }
         
+        // Backward Seek (15 seconds) - conditional
+        if (showSeekButtons) {
+            IconButton(onClick = onSeekBackward) {
+                Icon(
+                    imageVector = Icons.Default.Replay10,
+                    contentDescription = "Seek Backward 15s",
+                    modifier = Modifier.size(28.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        
         // Play/Pause
         Card(
             modifier = Modifier.size(72.dp),
@@ -725,6 +745,18 @@ private fun MusicPlayerControls(
                     contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
                     tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(36.dp)
+                )
+            }
+        }
+        
+        // Forward Seek (15 seconds) - conditional
+        if (showSeekButtons) {
+            IconButton(onClick = onSeekForward) {
+                Icon(
+                    imageVector = Icons.Default.Forward10,
+                    contentDescription = "Seek Forward 15s",
+                    modifier = Modifier.size(28.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
@@ -1313,6 +1345,7 @@ private fun FrequencyResponseDisplay(
 @Composable
 private fun MoreOptionsBottomSheet(
     mediaItem: MediaItem,
+    viewModel: MusicPlayerViewModel,
     onDismiss: () -> Unit,
     onAudioSettings: () -> Unit,
     onSleepTimer: () -> Unit,
@@ -1394,6 +1427,18 @@ private fun MoreOptionsBottomSheet(
             onClick = {
                 onAudioSettings()
                 onDismiss()
+            }
+        )
+
+        // Seek buttons toggle option
+        val showSeekButtons by viewModel.showSeekButtons.collectAsStateWithLifecycle()
+        MoreOptionItemWithSwitch(
+            icon = if (showSeekButtons) Icons.Default.FastForward else Icons.Default.FastRewind,
+            title = "Seek Buttons",
+            subtitle = if (showSeekButtons) "Hide forward/backward buttons" else "Show forward/backward buttons",
+            isChecked = showSeekButtons,
+            onToggle = {
+                viewModel.toggleSeekButtons()
             }
         )
         
@@ -1481,5 +1526,55 @@ private fun MoreOptionItem(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+}
+
+/**
+ * Individual option item with switch in the bottom sheet
+ */
+@Composable
+private fun MoreOptionItemWithSwitch(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    isChecked: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable { onToggle() }
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = title,
+            modifier = Modifier.size(24.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        
+        Spacer(modifier = Modifier.width(16.dp))
+        
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        
+        Spacer(modifier = Modifier.width(8.dp))
+        
+        Switch(
+            checked = isChecked,
+            onCheckedChange = { onToggle() }
+        )
     }
 }
