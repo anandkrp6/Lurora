@@ -11,7 +11,7 @@ enum class MainTab(
     val route: String
 ) {
     VIDEO("Video", Icons.Default.VideoLibrary, "video"),
-    MUSIC("Music", Icons.Default.MusicNote, "music"), 
+    MUSIC("Music", Icons.Default.LibraryMusic, "music"), 
     ONLINE("Online", Icons.Default.Language, "online"),
     MORE("More", Icons.Default.MoreHoriz, "more") // Renamed from OPTIONS to MORE
 }
