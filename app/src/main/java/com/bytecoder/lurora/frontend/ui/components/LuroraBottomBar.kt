@@ -50,8 +50,8 @@ fun LuroraBottomBar(
                                 text = tab.title,
                                 fontSize = 12.sp,
                                 fontWeight = if (currentTab == tab) FontWeight.SemiBold else FontWeight.Normal,
-                            textAlign = TextAlign.Center
-                        )
+                                textAlign = TextAlign.Center
+                            )
                         },
                         selected = currentTab == tab,
                         onClick = { onTabSelected(tab) },
@@ -60,14 +60,16 @@ fun LuroraBottomBar(
                             selectedTextColor = MaterialTheme.colorScheme.primary,
                             unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                             unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            indicatorColor = androidx.compose.ui.graphics.Color.Transparent
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer
                         )
                     )
                 }
             }
         }
     }
-}@Composable
+}
+
+@Composable
 fun LuroraBottomBarWithMiniPlayer(
     currentTab: MainTab,
     onTabSelected: (MainTab) -> Unit,
@@ -130,7 +132,7 @@ fun LuroraBottomBarWithMiniPlayer(
                             selectedTextColor = MaterialTheme.colorScheme.primary,
                             unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
                             unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            indicatorColor = androidx.compose.ui.graphics.Color.Transparent
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer
                         )
                     )
                 }
