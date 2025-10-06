@@ -305,7 +305,7 @@ private fun VideoPlayerTopBar(
         Box {
             IconButton(onClick = { showQueue = true }) {
                 Icon(
-                    imageVector = Icons.Default.QueueMusic,
+                    imageVector = Icons.Default.PlaylistPlay,
                     contentDescription = "Show Queue",
                     tint = Color.White
                 )
