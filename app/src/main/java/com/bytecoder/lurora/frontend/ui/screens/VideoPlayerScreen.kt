@@ -1,6 +1,8 @@
 package com.bytecoder.lurora.frontend.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -18,6 +20,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
@@ -31,10 +36,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.PlayerView
 import com.bytecoder.lurora.backend.models.*
 import com.bytecoder.lurora.frontend.viewmodels.VideoPlayerViewModel
+import com.bytecoder.lurora.frontend.viewmodels.AspectRatio
+import kotlin.math.cos
+import kotlin.math.sin
 
 /**
  * Video player screen with VLC-like features and controls
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VideoPlayerScreen(
     modifier: Modifier = Modifier,
@@ -46,8 +55,13 @@ fun VideoPlayerScreen(
     val isFullscreen by viewModel.isFullscreen.collectAsStateWithLifecycle()
     val isControlsVisible by viewModel.isControlsVisible.collectAsStateWithLifecycle()
     val brightness by viewModel.brightness.collectAsStateWithLifecycle()
-    val abLoopStart by viewModel.abLoopStart.collectAsStateWithLifecycle()
-    val abLoopEnd by viewModel.abLoopEnd.collectAsStateWithLifecycle()
+    val isSubtitleBottomSheetVisible by viewModel.isSubtitleBottomSheetVisible.collectAsStateWithLifecycle()
+    val isMoreOptionsBottomSheetVisible by viewModel.isMoreOptionsBottomSheetVisible.collectAsStateWithLifecycle()
+    val aspectRatio by viewModel.aspectRatio.collectAsStateWithLifecycle()
+    
+    // Bottom sheet states
+    val subtitleBottomSheetState = rememberModalBottomSheetState()
+    val moreOptionsBottomSheetState = rememberModalBottomSheetState()
     
     // Handle hardware back button
     BackHandler {
@@ -76,8 +90,6 @@ fun VideoPlayerScreen(
                 viewModel = viewModel,
                 playbackState = playbackState,
                 isFullscreen = isFullscreen,
-                abLoopStart = abLoopStart,
-                abLoopEnd = abLoopEnd,
                 onBack = onBack,
                 modifier = Modifier.fillMaxSize()
             )
@@ -93,6 +105,33 @@ fun VideoPlayerScreen(
                 onOpenWith = { viewModel.openWithAlternativeApp() },
                 onSkipToNext = { viewModel.skipToNextOnError() },
                 modifier = Modifier.align(Alignment.Center)
+            )
+        }
+    }
+    
+    // Subtitle/Audio Track Bottom Sheet
+    if (isSubtitleBottomSheetVisible) {
+        ModalBottomSheet(
+            onDismissRequest = { viewModel.hideSubtitleBottomSheet() },
+            sheetState = subtitleBottomSheetState
+        ) {
+            SubtitleAudioTrackBottomSheet(
+                viewModel = viewModel,
+                onDismiss = { viewModel.hideSubtitleBottomSheet() }
+            )
+        }
+    }
+    
+    // More Options Bottom Sheet  
+    if (isMoreOptionsBottomSheetVisible) {
+        ModalBottomSheet(
+            onDismissRequest = { viewModel.hideMoreOptionsBottomSheet() },
+            sheetState = moreOptionsBottomSheetState
+        ) {
+            MoreOptionsBottomSheet(
+                viewModel = viewModel,
+                aspectRatio = aspectRatio,
+                onDismiss = { viewModel.hideMoreOptionsBottomSheet() }
             )
         }
     }
@@ -166,8 +205,6 @@ private fun VideoPlayerControls(
     viewModel: VideoPlayerViewModel,
     playbackState: PlaybackState,
     isFullscreen: Boolean,
-    abLoopStart: Long?,
-    abLoopEnd: Long?,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -203,8 +240,6 @@ private fun VideoPlayerControls(
         VideoPlayerBottomBar(
             viewModel = viewModel,
             playbackState = playbackState,
-            abLoopStart = abLoopStart,
-            abLoopEnd = abLoopEnd,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
@@ -216,26 +251,6 @@ private fun VideoPlayerControls(
                     }
                 )
         )
-        
-        // A-B Loop indicators - position with status bar awareness
-        if (abLoopStart != null || abLoopEnd != null) {
-            ABLoopIndicators(
-                abLoopStart = abLoopStart,
-                abLoopEnd = abLoopEnd,
-                duration = playbackState.duration,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .then(
-                        if (isFullscreen) {
-                            Modifier.padding(16.dp)
-                        } else {
-                            Modifier
-                                .statusBarsPadding()
-                                .padding(16.dp)
-                        }
-                    )
-            )
-        }
     }
 }
 
@@ -323,10 +338,10 @@ private fun VideoPlayerTopBar(
 private fun VideoPlayerBottomBar(
     viewModel: VideoPlayerViewModel,
     playbackState: PlaybackState,
-    abLoopStart: Long?,
-    abLoopEnd: Long?,
     modifier: Modifier = Modifier
 ) {
+    val isFullscreen by viewModel.isFullscreen.collectAsStateWithLifecycle()
+    
     Column(
         modifier = modifier
             .background(
@@ -339,158 +354,157 @@ private fun VideoPlayerBottomBar(
             )
             .padding(16.dp)
     ) {
-        // Progress bar
-        VideoProgressBar(
+        // Time Display - moved above progress bar
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = formatTime(playbackState.currentPosition),
+                color = Color.White,
+                style = MaterialTheme.typography.bodySmall
+            )
+            
+            Text(
+                text = formatTime(playbackState.duration),
+                color = Color.White,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(8.dp))
+        
+        // Material 3 Expressive Progress Bar
+        WavyProgressIndicator(
             currentPosition = playbackState.currentPosition,
             duration = playbackState.duration,
-            abLoopStart = abLoopStart,
-            abLoopEnd = abLoopEnd,
-            playbackState = playbackState,
+            bufferedPosition = playbackState.currentPosition, // Use currentPosition as fallback for buffered
             onSeekTo = { viewModel.seekTo(it) },
             modifier = Modifier.fillMaxWidth()
         )
         
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(16.dp))
         
         // Control buttons
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceEvenly
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // A-B Loop controls
-            IconButton(onClick = { 
-                if (abLoopStart == null) {
-                    viewModel.setABLoopStart()
-                } else if (abLoopEnd == null) {
-                    viewModel.setABLoopEnd()
-                } else {
-                    viewModel.clearABLoop()
-                }
-            }) {
-                Icon(
-                    imageVector = when {
-                        abLoopStart == null -> Icons.Default.LooksOne
-                        abLoopEnd == null -> Icons.Default.LooksTwo
-                        else -> Icons.Default.Clear
-                    },
-                    contentDescription = when {
-                        abLoopStart == null -> "Set A Point"
-                        abLoopEnd == null -> "Set B Point"
-                        else -> "Clear A-B Loop"
-                    },
-                    tint = if (abLoopStart != null) MaterialTheme.colorScheme.primary else Color.White
-                )
-            }
-            
-            // Previous
-            IconButton(onClick = { viewModel.seekToPrevious() }) {
-                Icon(
-                    imageVector = Icons.Default.SkipPrevious,
-                    contentDescription = "Previous",
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-            
-            // Rewind
-            IconButton(onClick = { 
-                val newPos = (playbackState.currentPosition - 10000).coerceAtLeast(0)
-                viewModel.seekTo(newPos)
-            }) {
-                Icon(
-                    imageVector = Icons.Default.Replay10,
-                    contentDescription = "Rewind 10s",
-                    tint = Color.White
-                )
-            }
-            
-            // Play/Pause (main)
-            IconButton(onClick = { viewModel.togglePlayback() }) {
-                Icon(
-                    imageVector = if (playbackState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                    contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
-                    tint = Color.White,
-                    modifier = Modifier.size(32.dp)
-                )
-            }
-            
-            // Fast forward
-            IconButton(onClick = { 
-                val newPos = (playbackState.currentPosition + 10000).coerceAtMost(playbackState.duration)
-                viewModel.seekTo(newPos)
-            }) {
-                Icon(
-                    imageVector = Icons.Default.Forward10,
-                    contentDescription = "Forward 10s",
-                    tint = Color.White
-                )
-            }
-            
-            // Next
-            IconButton(onClick = { viewModel.seekToNext() }) {
-                Icon(
-                    imageVector = Icons.Default.SkipNext,
-                    contentDescription = "Next",
-                    tint = Color.White,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
-            
-            // Fullscreen toggle
-            IconButton(onClick = { viewModel.toggleFullscreen() }) {
-                Icon(
-                    imageVector = if (viewModel.isFullscreen.collectAsState().value) 
-                        Icons.Default.FullscreenExit 
-                    else 
-                        Icons.Default.Fullscreen,
-                    contentDescription = "Toggle Fullscreen",
-                    tint = Color.White
-                )
-            }
-            
-            // More options menu
-            var showMoreMenu by remember { mutableStateOf(false) }
-            Box {
-                IconButton(onClick = { showMoreMenu = true }) {
+            // Left side buttons
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Subtitle Toggle
+                IconButton(onClick = { viewModel.toggleSubtitleBottomSheet() }) {
                     Icon(
-                        imageVector = Icons.Default.MoreVert,
-                        contentDescription = "More Options",
+                        imageVector = Icons.Default.Subtitles,
+                        contentDescription = "Subtitle/Audio Tracks",
                         tint = Color.White
                     )
                 }
                 
-                DropdownMenu(
-                    expanded = showMoreMenu,
-                    onDismissRequest = { showMoreMenu = false }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Picture in Picture") },
-                        onClick = { 
-                            showMoreMenu = false
-                            // Enable PiP mode
-                        }
+                // Fullscreen Toggle
+                IconButton(onClick = { viewModel.toggleFullscreen() }) {
+                    Icon(
+                        imageVector = if (isFullscreen) 
+                            Icons.Default.FullscreenExit 
+                        else 
+                            Icons.Default.Fullscreen,
+                        contentDescription = "Toggle Fullscreen",
+                        tint = Color.White
                     )
-                    DropdownMenuItem(
-                        text = { Text("Cast") },
-                        onClick = { 
-                            showMoreMenu = false
-                            // Show cast dialog
-                        }
+                }
+            }
+            
+            // Middle buttons - main playback controls
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Previous Track
+                IconButton(onClick = { viewModel.seekToPrevious() }) {
+                    Icon(
+                        imageVector = Icons.Default.SkipPrevious,
+                        contentDescription = "Previous Track",
+                        tint = Color.White
                     )
-                    DropdownMenuItem(
-                        text = { Text("Sleep Timer") },
-                        onClick = { 
-                            showMoreMenu = false
-                            // Show sleep timer dialog
-                        }
+                }
+                
+                // Rewind 10s
+                IconButton(onClick = { 
+                    val newPos = (playbackState.currentPosition - 10000).coerceAtLeast(0)
+                    viewModel.seekTo(newPos)
+                }) {
+                    Icon(
+                        imageVector = Icons.Default.Replay10,
+                        contentDescription = "Rewind 10s",
+                        tint = Color.White
                     )
-                    DropdownMenuItem(
-                        text = { Text("Statistics") },
-                        onClick = { 
-                            showMoreMenu = false
-                            // Show video statistics
-                        }
+                }
+                
+                // Play/Pause (main)
+                IconButton(onClick = { viewModel.togglePlayback() }) {
+                    Icon(
+                        imageVector = if (playbackState.isPlaying) Icons.Default.PauseCircleOutline else Icons.Default.PlayCircleOutline,
+                        contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
+                        tint = Color.White
+                    )
+                }
+                
+                // Fast Forward 10s
+                IconButton(onClick = { 
+                    val newPos = (playbackState.currentPosition + 10000).coerceAtMost(playbackState.duration)
+                    viewModel.seekTo(newPos)
+                }) {
+                    Icon(
+                        imageVector = Icons.Default.Forward10,
+                        contentDescription = "Fast Forward 10s",
+                        tint = Color.White
+                    )
+                }
+                
+                // Next Track
+                IconButton(onClick = { viewModel.seekToNext() }) {
+                    Icon(
+                        imageVector = Icons.Default.SkipNext,
+                        contentDescription = "Next Track",
+                        tint = Color.White
+                    )
+                }
+            }
+            
+            // Right side buttons
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Aspect Ratio Toggle
+                IconButton(onClick = { 
+                    val currentRatio = viewModel.aspectRatio.value
+                    val nextRatio = when (currentRatio) {
+                        AspectRatio.BEST_FIT -> AspectRatio.FIT_SCREEN
+                        AspectRatio.FIT_SCREEN -> AspectRatio.FILL
+                        AspectRatio.FILL -> AspectRatio.RATIO_16_9
+                        AspectRatio.RATIO_16_9 -> AspectRatio.RATIO_9_16
+                        AspectRatio.RATIO_9_16 -> AspectRatio.RATIO_4_3
+                        AspectRatio.RATIO_4_3 -> AspectRatio.RATIO_3_4
+                        AspectRatio.RATIO_3_4 -> AspectRatio.CENTER
+                        AspectRatio.CENTER -> AspectRatio.BEST_FIT
+                    }
+                    viewModel.setAspectRatio(nextRatio)
+                }) {
+                    Icon(
+                        imageVector = Icons.Default.AspectRatio,
+                        contentDescription = "Aspect Ratio",
+                        tint = Color.White
+                    )
+                }
+                
+                // More Options Menu
+                IconButton(onClick = { viewModel.toggleMoreOptionsBottomSheet() }) {
+                    Icon(
+                        imageVector = Icons.Default.MoreVert,
+                        contentDescription = "More Options",
+                        tint = Color.White
                     )
                 }
             }
@@ -499,14 +513,152 @@ private fun VideoPlayerBottomBar(
 }
 
 /**
- * Video progress bar with A-B loop indicators
+ * Material 3 Expressive (Wavy) Progress Indicator for video seeking
+ */
+@Composable
+private fun WavyProgressIndicator(
+    currentPosition: Long,
+    duration: Long,
+    bufferedPosition: Long,
+    onSeekTo: (Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val progress = if (duration > 0) currentPosition.toFloat() / duration else 0f
+    val bufferedProgress = if (duration > 0) bufferedPosition.toFloat() / duration else 0f
+    
+    var isDragging by remember { mutableStateOf(false) }
+    var dragProgress by remember { mutableStateOf(progress) }
+    
+    // Get colors at Composable level
+    val primaryColor = MaterialTheme.colorScheme.primary
+    
+    // Animation for the wavy effect
+    val animatedProgress by animateFloatAsState(
+        targetValue = if (isDragging) dragProgress else progress,
+        animationSpec = tween(durationMillis = if (isDragging) 0 else 300),
+        label = "progress_animation"
+    )
+    
+    Canvas(
+        modifier = modifier
+            .height(32.dp)
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        isDragging = true
+                        val newProgress = (offset.x / size.width).coerceIn(0f, 1f)
+                        dragProgress = newProgress
+                    },
+                    onDragEnd = {
+                        isDragging = false
+                        val newPosition = (dragProgress * duration).toLong()
+                        onSeekTo(newPosition)
+                    }
+                ) { _, dragAmount ->
+                    val newProgress = (dragProgress + dragAmount.x / size.width).coerceIn(0f, 1f)
+                    dragProgress = newProgress
+                }
+            }
+    ) {
+        val trackHeight = 4.dp.toPx()
+        val wavyHeight = 12.dp.toPx()
+        val centerY = size.height / 2
+        
+        // Draw buffered track
+        drawWavyLine(
+            progress = bufferedProgress,
+            centerY = centerY,
+            trackHeight = trackHeight,
+            wavyHeight = wavyHeight / 2,
+            color = Color.White.copy(alpha = 0.3f),
+            strokeWidth = trackHeight
+        )
+        
+        // Draw main progress track with wavy effect
+        drawWavyLine(
+            progress = animatedProgress,
+            centerY = centerY,
+            trackHeight = trackHeight,
+            wavyHeight = if (isDragging) wavyHeight else wavyHeight / 2,
+            color = primaryColor,
+            strokeWidth = trackHeight
+        )
+        
+        // Draw inactive track
+        drawLine(
+            color = Color.White.copy(alpha = 0.2f),
+            start = androidx.compose.ui.geometry.Offset(animatedProgress * size.width, centerY),
+            end = androidx.compose.ui.geometry.Offset(size.width, centerY),
+            strokeWidth = trackHeight,
+            cap = StrokeCap.Round
+        )
+        
+        // Draw thumb (circular indicator)
+        val thumbRadius = 8.dp.toPx()
+        val thumbX = animatedProgress * size.width
+        
+        drawCircle(
+            color = primaryColor,
+            radius = thumbRadius,
+            center = androidx.compose.ui.geometry.Offset(thumbX, centerY)
+        )
+        
+        // Draw inner thumb
+        drawCircle(
+            color = Color.White,
+            radius = thumbRadius * 0.6f,
+            center = androidx.compose.ui.geometry.Offset(thumbX, centerY)
+        )
+    }
+}
+
+/**
+ * Helper function to draw wavy line for expressive progress indicator
+ */
+private fun DrawScope.drawWavyLine(
+    progress: Float,
+    centerY: Float,
+    trackHeight: Float,
+    wavyHeight: Float,
+    color: Color,
+    strokeWidth: Float
+) {
+    val endX = progress * size.width
+    val waveLength = 40.dp.toPx()
+    val segments = 100
+    
+    val path = androidx.compose.ui.graphics.Path()
+    var started = false
+    
+    for (i in 0..segments) {
+        val x = (i.toFloat() / segments) * endX
+        if (x > endX) break
+        
+        val waveOffset = sin((x / waveLength) * 2 * kotlin.math.PI) * wavyHeight * progress
+        val y = centerY + waveOffset.toFloat()
+        
+        if (!started) {
+            path.moveTo(x, y)
+            started = true
+        } else {
+            path.lineTo(x, y)
+        }
+    }
+    
+    drawPath(
+        path = path,
+        color = color,
+        style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+    )
+}
+
+/**
+ * Video progress bar - keeping original as fallback
  */
 @Composable
 private fun VideoProgressBar(
     currentPosition: Long,
     duration: Long,
-    abLoopStart: Long?,
-    abLoopEnd: Long?,
     playbackState: PlaybackState,
     onSeekTo: (Long) -> Unit,
     modifier: Modifier = Modifier
@@ -514,51 +666,20 @@ private fun VideoProgressBar(
     val progress = if (duration > 0) currentPosition.toFloat() / duration else 0f
     
     Column(modifier = modifier) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            // Main progress bar
-            Slider(
-                value = progress,
-                onValueChange = { newProgress ->
-                    val newPosition = (newProgress * duration).toLong()
-                    onSeekTo(newPosition)
-                },
-                colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.primary,
-                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                    inactiveTrackColor = Color.White.copy(alpha = 0.3f)
-                ),
-                modifier = Modifier.fillMaxWidth()
-            )
-            
-            // A-B loop indicators
-            if (abLoopStart != null && duration > 0) {
-                val startProgress = abLoopStart.toFloat() / duration
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(startProgress)
-                        .height(4.dp)
-                        .background(
-                            Color.Green.copy(alpha = 0.7f),
-                            RoundedCornerShape(2.dp)
-                        )
-                        .align(Alignment.CenterStart)
-                )
-            }
-            
-            if (abLoopEnd != null && duration > 0) {
-                val endProgress = abLoopEnd.toFloat() / duration
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth(1f - endProgress)
-                        .height(4.dp)
-                        .background(
-                            Color.Red.copy(alpha = 0.7f),
-                            RoundedCornerShape(2.dp)
-                        )
-                        .align(Alignment.CenterEnd)
-                )
-            }
-        }
+        // Main progress bar
+        Slider(
+            value = progress,
+            onValueChange = { newProgress ->
+                val newPosition = (newProgress * duration).toLong()
+                onSeekTo(newPosition)
+            },
+            colors = SliderDefaults.colors(
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary,
+                inactiveTrackColor = Color.White.copy(alpha = 0.3f)
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
         
         // Time labels
         Row(
@@ -571,67 +692,11 @@ private fun VideoProgressBar(
                 style = MaterialTheme.typography.bodySmall
             )
             
-            Row {
-                if (playbackState.playbackSpeed != 1.0f) {
-                    Text(
-                        text = "${playbackState.playbackSpeed}x",
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(end = 8.dp)
-                    )
-                }
-                
-                Text(
-                    text = formatTime(duration),
-                    color = Color.White,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-        }
-    }
-}
-
-/**
- * A-B Loop indicators in top-right corner
- */
-@Composable
-private fun ABLoopIndicators(
-    abLoopStart: Long?,
-    abLoopEnd: Long?,
-    duration: Long,
-    modifier: Modifier = Modifier
-) {
-    Card(
-        modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = Color.Black.copy(alpha = 0.7f)
-        )
-    ) {
-        Column(
-            modifier = Modifier.padding(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
             Text(
-                text = "A-B Loop",
+                text = formatTime(duration),
                 color = Color.White,
-                style = MaterialTheme.typography.labelSmall
+                style = MaterialTheme.typography.bodySmall
             )
-            
-            if (abLoopStart != null) {
-                Text(
-                    text = "A: ${formatTime(abLoopStart)}",
-                    color = Color.Green,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-            
-            if (abLoopEnd != null) {
-                Text(
-                    text = "B: ${formatTime(abLoopEnd)}",
-                    color = Color.Red,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
         }
     }
 }
@@ -920,5 +985,195 @@ private fun EnhancedErrorDialog(
                 }
             }
         }
+    }
+}
+
+/**
+ * Subtitle and Audio Track selection bottom sheet
+ */
+@Composable
+private fun SubtitleAudioTrackBottomSheet(
+    viewModel: VideoPlayerViewModel,
+    onDismiss: () -> Unit
+) {
+    val availableSubtitleTracks by viewModel.availableSubtitleTracks.collectAsStateWithLifecycle()
+    val availableAudioTracks by viewModel.availableAudioTracks.collectAsStateWithLifecycle()
+    val selectedSubtitleTrack by viewModel.selectedSubtitleTrack.collectAsStateWithLifecycle()
+    val selectedAudioTrack by viewModel.selectedAudioTrack.collectAsStateWithLifecycle()
+    
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "Subtitles & Audio",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        
+        // Subtitle tracks section
+        Text(
+            text = "Subtitles",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        
+        // Subtitle Off option
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { 
+                    viewModel.selectSubtitleTrack(null)
+                    onDismiss()
+                }
+                .padding(vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RadioButton(
+                selected = selectedSubtitleTrack == null,
+                onClick = { 
+                    viewModel.selectSubtitleTrack(null)
+                    onDismiss()
+                }
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Off")
+        }
+        
+        // Available subtitle tracks
+        availableSubtitleTracks.forEach { track ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { 
+                        viewModel.selectSubtitleTrack(track)
+                        onDismiss()
+                    }
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RadioButton(
+                    selected = selectedSubtitleTrack?.id == track.id,
+                    onClick = { 
+                        viewModel.selectSubtitleTrack(track)
+                        onDismiss()
+                    }
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column {
+                    Text(track.title)
+                    track.language?.let { language ->
+                        Text(
+                            text = language,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(24.dp))
+        
+        // Audio tracks section
+        Text(
+            text = "Audio",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        
+        availableAudioTracks.forEach { track ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { 
+                        viewModel.selectAudioTrack(track)
+                        onDismiss()
+                    }
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RadioButton(
+                    selected = selectedAudioTrack?.id == track.id,
+                    onClick = { 
+                        viewModel.selectAudioTrack(track)
+                        onDismiss()
+                    }
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Column {
+                    Text(track.title)
+                    track.language?.let { language ->
+                        Text(
+                            text = "$language • ${track.channels} channels",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+    }
+}
+
+/**
+ * More options bottom sheet with aspect ratio and other settings
+ */
+@Composable
+private fun MoreOptionsBottomSheet(
+    viewModel: VideoPlayerViewModel,
+    aspectRatio: AspectRatio,
+    onDismiss: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+    ) {
+        Text(
+            text = "Video Settings",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        
+        // Aspect Ratio Section
+        Text(
+            text = "Aspect Ratio",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        
+        AspectRatio.values().forEach { ratio ->
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { 
+                        viewModel.setAspectRatio(ratio)
+                        onDismiss()
+                    }
+                    .padding(vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                RadioButton(
+                    selected = aspectRatio == ratio,
+                    onClick = { 
+                        viewModel.setAspectRatio(ratio)
+                        onDismiss()
+                    }
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(ratio.displayName)
+            }
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }

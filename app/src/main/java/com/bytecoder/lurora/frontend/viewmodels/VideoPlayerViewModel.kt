@@ -12,6 +12,20 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
+ * Video aspect ratio options
+ */
+enum class AspectRatio(val displayName: String, val value: String) {
+    BEST_FIT("Best Fit", "best_fit"),
+    FIT_SCREEN("Fit Screen", "fit_screen"), 
+    FILL("Fill", "fill"),
+    RATIO_16_9("16:9", "16_9"),
+    RATIO_9_16("9:16", "9_16"),
+    RATIO_4_3("4:3", "4_3"),
+    RATIO_3_4("3:4", "3_4"),
+    CENTER("Center", "center")
+}
+
+/**
  * ViewModel for video player with VLC-like features
  */
 @HiltViewModel
@@ -62,14 +76,16 @@ class VideoPlayerViewModel @Inject constructor(
     private val _chapters = MutableStateFlow<List<Chapter>>(emptyList())
     val chapters: StateFlow<List<Chapter>> = _chapters.asStateFlow()
     
-    private val _abLoopStart = MutableStateFlow<Long?>(null)
-    val abLoopStart: StateFlow<Long?> = _abLoopStart.asStateFlow()
+    private val _aspectRatio = MutableStateFlow(AspectRatio.BEST_FIT)
+    val aspectRatio: StateFlow<AspectRatio> = _aspectRatio.asStateFlow()
     
-    private val _abLoopEnd = MutableStateFlow<Long?>(null)
-    val abLoopEnd: StateFlow<Long?> = _abLoopEnd.asStateFlow()
+    private val _isSubtitleBottomSheetVisible = MutableStateFlow(false)
+    val isSubtitleBottomSheetVisible: StateFlow<Boolean> = _isSubtitleBottomSheetVisible.asStateFlow()
+    
+    private val _isMoreOptionsBottomSheetVisible = MutableStateFlow(false)
+    val isMoreOptionsBottomSheetVisible: StateFlow<Boolean> = _isMoreOptionsBottomSheetVisible.asStateFlow()
     
     private var controlsHideJob: Job? = null
-    private var abLoopJob: Job? = null
     
     /**
      * Basic playback controls
@@ -258,48 +274,6 @@ class VideoPlayerViewModel @Inject constructor(
     }
     
     /**
-     * A-B Loop functionality
-     */
-    fun setABLoopStart() {
-        _abLoopStart.value = playbackState.value.currentPosition
-        showControlsTemporarily()
-    }
-    
-    fun setABLoopEnd() {
-        val startPos = _abLoopStart.value ?: return
-        val currentPos = playbackState.value.currentPosition
-        
-        if (currentPos > startPos) {
-            _abLoopEnd.value = currentPos
-            startABLoop()
-        }
-        showControlsTemporarily()
-    }
-    
-    fun clearABLoop() {
-        _abLoopStart.value = null
-        _abLoopEnd.value = null
-        abLoopJob?.cancel()
-        showControlsTemporarily()
-    }
-    
-    private fun startABLoop() {
-        val startPos = _abLoopStart.value ?: return
-        val endPos = _abLoopEnd.value ?: return
-        
-        abLoopJob?.cancel()
-        abLoopJob = viewModelScope.launch {
-            while (_abLoopStart.value != null && _abLoopEnd.value != null) {
-                val currentPos = playbackState.value.currentPosition
-                if (currentPos >= endPos) {
-                    seekTo(startPos)
-                }
-                delay(500) // Check every 500ms
-            }
-        }
-    }
-    
-    /**
      * Gesture handling
      */
     fun handleSeekGesture(deltaX: Float) {
@@ -319,6 +293,31 @@ class VideoPlayerViewModel @Inject constructor(
     fun handleBrightnessGesture(deltaY: Float) {
         val delta = -deltaY / 1000f // Invert Y axis, normalize
         adjustBrightness(delta)
+    }
+    
+    /**
+     * Aspect ratio management
+     */
+    fun setAspectRatio(aspectRatio: AspectRatio) {
+        _aspectRatio.value = aspectRatio
+        // TODO: Save to preferences
+        showControlsTemporarily()
+    }
+    
+    fun toggleSubtitleBottomSheet() {
+        _isSubtitleBottomSheetVisible.value = !_isSubtitleBottomSheetVisible.value
+    }
+    
+    fun hideSubtitleBottomSheet() {
+        _isSubtitleBottomSheetVisible.value = false
+    }
+    
+    fun toggleMoreOptionsBottomSheet() {
+        _isMoreOptionsBottomSheetVisible.value = !_isMoreOptionsBottomSheetVisible.value
+    }
+    
+    fun hideMoreOptionsBottomSheet() {
+        _isMoreOptionsBottomSheetVisible.value = false
     }
     
     /**
@@ -520,6 +519,5 @@ class VideoPlayerViewModel @Inject constructor(
     override fun onCleared() {
         super.onCleared()
         controlsHideJob?.cancel()
-        abLoopJob?.cancel()
     }
 }

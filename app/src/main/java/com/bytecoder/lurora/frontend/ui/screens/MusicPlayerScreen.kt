@@ -10,6 +10,7 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.*
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,6 +34,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -186,13 +188,12 @@ private fun MiniPlayer(
                 }
             }
             
-            // Progress indicator
-            LinearProgressIndicator(
-                progress = if (playbackState.duration > 0) {
-                    playbackState.currentPosition.toFloat() / playbackState.duration
-                } else 0f,
-                modifier = Modifier.fillMaxWidth(),
-                trackColor = Color.Transparent
+            // Material 3 Expressive Progress Indicator
+            WavyProgressIndicator(
+                currentPosition = playbackState.currentPosition,
+                duration = playbackState.duration,
+                onSeekTo = { viewModel.seekTo(it) },
+                modifier = Modifier.fillMaxWidth()
             )
         }
     }
@@ -358,13 +359,33 @@ private fun FullScreenMusicPlayer(
             
             Spacer(modifier = Modifier.height(16.dp))
             
-            // Progress bar
-            SquigglyProgressBar(
+            // Material 3 Expressive Progress Bar
+            WavyProgressIndicator(
                 currentPosition = playbackState.currentPosition,
                 duration = playbackState.duration,
                 onSeekTo = { viewModel.seekTo(it) },
                 modifier = Modifier.fillMaxWidth()
             )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Time labels
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = formatTime(playbackState.currentPosition),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                
+                Text(
+                    text = formatTime(playbackState.duration),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
             
             Spacer(modifier = Modifier.height(24.dp))
             
@@ -635,141 +656,6 @@ private fun TrackInfoBar(
                     modifier = Modifier.size(24.dp)
                 )
             }
-        }
-    }
-}
-
-/**
- * Squiggly Progress Bar with wave animation
- */
-@Composable
-private fun SquigglyProgressBar(
-    currentPosition: Long,
-    duration: Long,
-    onSeekTo: (Long) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val progress = if (duration > 0) currentPosition.toFloat() / duration else 0f
-    
-    // Animation for the wave effect
-    val waveOffset by animateFloatAsState(
-        targetValue = if (progress > 0) 1f else 0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(2000),
-            repeatMode = androidx.compose.animation.core.RepeatMode.Restart
-        ), label = "wave_animation"
-    )
-    
-    Column(modifier = modifier) {
-        // Custom squiggly progress bar
-        Canvas(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(24.dp)
-                .pointerInput(Unit) {
-                    detectTapGestures { offset ->
-                        val newProgress = offset.x / size.width
-                        val newPosition = (newProgress * duration).toLong()
-                        onSeekTo(newPosition.coerceIn(0, duration))
-                    }
-                }
-        ) {
-            val canvasWidth = size.width
-            val canvasHeight = size.height
-            val centerY = canvasHeight / 2
-            
-            // Track parameters
-            val trackHeight = 4.dp.toPx()
-            val squiggleAmplitude = 3.dp.toPx()
-            val squiggleFrequency = 0.02f
-            
-            // Background track (inactive)
-            val backgroundPath = Path()
-            backgroundPath.moveTo(0f, centerY)
-            
-            for (x in 0..canvasWidth.toInt() step 2) {
-                val xFloat = x.toFloat()
-                val wave = sin((xFloat * squiggleFrequency + waveOffset * 2 * PI).toFloat()) * squiggleAmplitude * 0.3f
-                backgroundPath.lineTo(xFloat, centerY + wave)
-            }
-            
-            drawPath(
-                path = backgroundPath,
-                color = Color.Gray.copy(alpha = 0.3f),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(
-                    width = trackHeight,
-                    cap = StrokeCap.Round
-                )
-            )
-            
-            // Active progress track
-            if (progress > 0) {
-                val progressWidth = canvasWidth * progress
-                val activePath = Path()
-                activePath.moveTo(0f, centerY)
-                
-                for (x in 0..progressWidth.toInt() step 2) {
-                    val xFloat = x.toFloat()
-                    val wave = sin((xFloat * squiggleFrequency + waveOffset * 2 * PI).toFloat()) * squiggleAmplitude
-                    activePath.lineTo(xFloat, centerY + wave)
-                }
-                
-                drawPath(
-                    path = activePath,
-                    brush = Brush.horizontalGradient(
-                        colors = listOf(
-                            Color(0xFF1DB954), // Spotify green
-                            Color(0xFF1ED760)
-                        )
-                    ),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(
-                        width = trackHeight,
-                        cap = StrokeCap.Round
-                    )
-                )
-                
-                // Progress thumb
-                val thumbX = progressWidth
-                val thumbY = centerY + sin((thumbX * squiggleFrequency + waveOffset * 2 * PI).toFloat()) * squiggleAmplitude
-                
-                drawCircle(
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            Color.White,
-                            Color(0xFF1DB954)
-                        )
-                    ),
-                    radius = 8.dp.toPx(),
-                    center = Offset(thumbX, thumbY)
-                )
-                
-                // Inner thumb circle
-                drawCircle(
-                    color = Color.White,
-                    radius = 4.dp.toPx(),
-                    center = Offset(thumbX, thumbY)
-                )
-            }
-        }
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        // Time labels
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = formatTime(currentPosition),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            
-            Text(
-                text = formatTime(duration),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }
@@ -1733,4 +1619,146 @@ private fun MoreOptionItemWithSwitch(
             onCheckedChange = { onToggle() }
         )
     }
+}
+
+/**
+ * Material 3 Expressive (Wavy) Progress Indicator for music seeking
+ */
+@Composable
+private fun WavyProgressIndicator(
+    currentPosition: Long,
+    duration: Long,
+    bufferedPosition: Long = currentPosition,
+    onSeekTo: (Long) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val progress = if (duration > 0) currentPosition.toFloat() / duration else 0f
+    val bufferedProgress = if (duration > 0) bufferedPosition.toFloat() / duration else 0f
+    
+    var isDragging by remember { mutableStateOf(false) }
+    var dragProgress by remember { mutableStateOf(progress) }
+    
+    // Get colors at Composable level
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val surfaceVariant = MaterialTheme.colorScheme.surfaceVariant
+    val surfaceColor = MaterialTheme.colorScheme.surface
+    
+    // Animation for the wavy effect
+    val animatedProgress by animateFloatAsState(
+        targetValue = if (isDragging) dragProgress else progress,
+        animationSpec = tween(durationMillis = if (isDragging) 0 else 300),
+        label = "progress_animation"
+    )
+    
+    Canvas(
+        modifier = modifier
+            .height(32.dp)
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        isDragging = true
+                        val newProgress = (offset.x / size.width).coerceIn(0f, 1f)
+                        dragProgress = newProgress
+                    },
+                    onDragEnd = {
+                        isDragging = false
+                        val newPosition = (dragProgress * duration).toLong()
+                        onSeekTo(newPosition)
+                    }
+                ) { _, dragAmount ->
+                    val newProgress = (dragProgress + dragAmount.x / size.width).coerceIn(0f, 1f)
+                    dragProgress = newProgress
+                }
+            }
+    ) {
+        val trackHeight = 4.dp.toPx()
+        val wavyHeight = 12.dp.toPx()
+        val centerY = size.height / 2
+        
+        // Draw buffered track
+        drawWavyLine(
+            progress = bufferedProgress,
+            centerY = centerY,
+            trackHeight = trackHeight,
+            wavyHeight = wavyHeight / 2,
+            color = surfaceVariant.copy(alpha = 0.5f),
+            strokeWidth = trackHeight
+        )
+        
+        // Draw main progress track with wavy effect
+        drawWavyLine(
+            progress = animatedProgress,
+            centerY = centerY,
+            trackHeight = trackHeight,
+            wavyHeight = if (isDragging) wavyHeight else wavyHeight / 2,
+            color = primaryColor,
+            strokeWidth = trackHeight
+        )
+        
+        // Draw inactive track
+        drawLine(
+            color = surfaceVariant.copy(alpha = 0.3f),
+            start = androidx.compose.ui.geometry.Offset(animatedProgress * size.width, centerY),
+            end = androidx.compose.ui.geometry.Offset(size.width, centerY),
+            strokeWidth = trackHeight,
+            cap = StrokeCap.Round
+        )
+        
+        // Draw thumb (circular indicator)
+        val thumbRadius = 8.dp.toPx()
+        val thumbX = animatedProgress * size.width
+        
+        drawCircle(
+            color = primaryColor,
+            radius = thumbRadius,
+            center = androidx.compose.ui.geometry.Offset(thumbX, centerY)
+        )
+        
+        // Draw inner thumb
+        drawCircle(
+            color = surfaceColor,
+            radius = thumbRadius * 0.6f,
+            center = androidx.compose.ui.geometry.Offset(thumbX, centerY)
+        )
+    }
+}
+
+/**
+ * Helper function to draw wavy line for expressive progress indicator
+ */
+private fun DrawScope.drawWavyLine(
+    progress: Float,
+    centerY: Float,
+    trackHeight: Float,
+    wavyHeight: Float,
+    color: Color,
+    strokeWidth: Float
+) {
+    val endX = progress * size.width
+    val waveLength = 40.dp.toPx()
+    val segments = 100
+    
+    val path = androidx.compose.ui.graphics.Path()
+    var started = false
+    
+    for (i in 0..segments) {
+        val x = (i.toFloat() / segments) * endX
+        if (x > endX) break
+        
+        val waveOffset = sin((x / waveLength) * 2 * kotlin.math.PI) * wavyHeight * progress
+        val y = centerY + waveOffset.toFloat()
+        
+        if (!started) {
+            path.moveTo(x, y)
+            started = true
+        } else {
+            path.lineTo(x, y)
+        }
+    }
+    
+    drawPath(
+        path = path,
+        color = color,
+        style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+    )
 }
