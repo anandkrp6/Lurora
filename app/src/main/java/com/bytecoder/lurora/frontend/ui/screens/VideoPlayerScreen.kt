@@ -352,38 +352,40 @@ private fun VideoPlayerBottomBar(
                     )
                 )
             )
-            .padding(16.dp)
     ) {
-        // Time Display - moved above progress bar
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
+        // Progress section
+        Column(
+            modifier = Modifier.padding(16.dp)
         ) {
-            Text(
-                text = formatTime(playbackState.currentPosition),
-                color = Color.White,
-                style = MaterialTheme.typography.bodySmall
-            )
+            // Time Display
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = formatTime(playbackState.currentPosition),
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodySmall
+                )
+                
+                Text(
+                    text = formatTime(playbackState.duration),
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
             
-            Text(
-                text = formatTime(playbackState.duration),
-                color = Color.White,
-                style = MaterialTheme.typography.bodySmall
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Material 3 Expressive Progress Bar
+            WavyProgressIndicator(
+                currentPosition = playbackState.currentPosition,
+                duration = playbackState.duration,
+                bufferedPosition = playbackState.currentPosition,
+                onSeekTo = { viewModel.seekTo(it) },
+                modifier = Modifier.fillMaxWidth()
             )
         }
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        // Material 3 Expressive Progress Bar
-        WavyProgressIndicator(
-            currentPosition = playbackState.currentPosition,
-            duration = playbackState.duration,
-            bufferedPosition = playbackState.currentPosition, // Use currentPosition as fallback for buffered
-            onSeekTo = { viewModel.seekTo(it) },
-            modifier = Modifier.fillMaxWidth()
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
         
         // Control buttons
         Row(
@@ -391,12 +393,14 @@ private fun VideoPlayerBottomBar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Left side buttons
+            // Left section
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Subtitle Toggle
-                IconButton(onClick = { viewModel.toggleSubtitleBottomSheet() }) {
+                // Subtitle/Audio Toggle
+                IconButton(
+                    onClick = { viewModel.toggleSubtitleBottomSheet() }
+                ) {
                     Icon(
                         imageVector = Icons.Default.Subtitles,
                         contentDescription = "Subtitle/Audio Tracks",
@@ -404,8 +408,107 @@ private fun VideoPlayerBottomBar(
                     )
                 }
                 
+                // Aspect Ratio Toggle
+                IconButton(
+                    onClick = { 
+                        val currentRatio = viewModel.aspectRatio.value
+                        val nextRatio = when (currentRatio) {
+                            AspectRatio.BEST_FIT -> AspectRatio.FIT_SCREEN
+                            AspectRatio.FIT_SCREEN -> AspectRatio.FILL
+                            AspectRatio.FILL -> AspectRatio.RATIO_16_9
+                            AspectRatio.RATIO_16_9 -> AspectRatio.RATIO_9_16
+                            AspectRatio.RATIO_9_16 -> AspectRatio.RATIO_4_3
+                            AspectRatio.RATIO_4_3 -> AspectRatio.RATIO_3_4
+                            AspectRatio.RATIO_3_4 -> AspectRatio.CENTER
+                            AspectRatio.CENTER -> AspectRatio.BEST_FIT
+                        }
+                        viewModel.setAspectRatio(nextRatio)
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AspectRatio,
+                        contentDescription = "Aspect Ratio",
+                        tint = Color.White
+                    )
+                }
+            }
+            
+            // Center section
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Previous Track
+                IconButton(
+                    onClick = { viewModel.seekToPrevious() }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.SkipPrevious,
+                        contentDescription = "Previous Track",
+                        tint = Color.White
+                    )
+                }
+                
+                // Rewind 10s
+                IconButton(
+                    onClick = { 
+                        val newPos = (playbackState.currentPosition - 10000).coerceAtLeast(0)
+                        viewModel.seekTo(newPos)
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Replay10,
+                        contentDescription = "Rewind 10s",
+                        tint = Color.White
+                    )
+                }
+                
+                // Play/Pause
+                IconButton(
+                    onClick = { viewModel.togglePlayback() },
+                    modifier = Modifier.size(52.dp)
+                ) {
+                    Icon(
+                        imageVector = if (playbackState.isPlaying) Icons.Default.PauseCircleOutline else Icons.Default.PlayCircleOutline,
+                        contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
+                        tint = Color.White,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+                
+                // Fast Forward 10s
+                IconButton(
+                    onClick = { 
+                        val newPos = (playbackState.currentPosition + 10000).coerceAtMost(playbackState.duration)
+                        viewModel.seekTo(newPos)
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Forward10,
+                        contentDescription = "Fast Forward 10s",
+                        tint = Color.White
+                    )
+                }
+                
+                // Next Track
+                IconButton(
+                    onClick = { viewModel.seekToNext() }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.SkipNext,
+                        contentDescription = "Next Track",
+                        tint = Color.White
+                    )
+                }
+            }
+            
+            // Right section
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 // Fullscreen Toggle
-                IconButton(onClick = { viewModel.toggleFullscreen() }) {
+                IconButton(
+                    onClick = { viewModel.toggleFullscreen() }
+                ) {
                     Icon(
                         imageVector = if (isFullscreen) 
                             Icons.Default.FullscreenExit 
@@ -415,92 +518,11 @@ private fun VideoPlayerBottomBar(
                         tint = Color.White
                     )
                 }
-            }
-            
-            // Middle buttons - main playback controls
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Previous Track
-                IconButton(onClick = { viewModel.seekToPrevious() }) {
-                    Icon(
-                        imageVector = Icons.Default.SkipPrevious,
-                        contentDescription = "Previous Track",
-                        tint = Color.White
-                    )
-                }
-                
-                // Rewind 10s
-                IconButton(onClick = { 
-                    val newPos = (playbackState.currentPosition - 10000).coerceAtLeast(0)
-                    viewModel.seekTo(newPos)
-                }) {
-                    Icon(
-                        imageVector = Icons.Default.Replay10,
-                        contentDescription = "Rewind 10s",
-                        tint = Color.White
-                    )
-                }
-                
-                // Play/Pause (main)
-                IconButton(onClick = { viewModel.togglePlayback() }) {
-                    Icon(
-                        imageVector = if (playbackState.isPlaying) Icons.Default.PauseCircleOutline else Icons.Default.PlayCircleOutline,
-                        contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
-                        tint = Color.White
-                    )
-                }
-                
-                // Fast Forward 10s
-                IconButton(onClick = { 
-                    val newPos = (playbackState.currentPosition + 10000).coerceAtMost(playbackState.duration)
-                    viewModel.seekTo(newPos)
-                }) {
-                    Icon(
-                        imageVector = Icons.Default.Forward10,
-                        contentDescription = "Fast Forward 10s",
-                        tint = Color.White
-                    )
-                }
-                
-                // Next Track
-                IconButton(onClick = { viewModel.seekToNext() }) {
-                    Icon(
-                        imageVector = Icons.Default.SkipNext,
-                        contentDescription = "Next Track",
-                        tint = Color.White
-                    )
-                }
-            }
-            
-            // Right side buttons
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Aspect Ratio Toggle
-                IconButton(onClick = { 
-                    val currentRatio = viewModel.aspectRatio.value
-                    val nextRatio = when (currentRatio) {
-                        AspectRatio.BEST_FIT -> AspectRatio.FIT_SCREEN
-                        AspectRatio.FIT_SCREEN -> AspectRatio.FILL
-                        AspectRatio.FILL -> AspectRatio.RATIO_16_9
-                        AspectRatio.RATIO_16_9 -> AspectRatio.RATIO_9_16
-                        AspectRatio.RATIO_9_16 -> AspectRatio.RATIO_4_3
-                        AspectRatio.RATIO_4_3 -> AspectRatio.RATIO_3_4
-                        AspectRatio.RATIO_3_4 -> AspectRatio.CENTER
-                        AspectRatio.CENTER -> AspectRatio.BEST_FIT
-                    }
-                    viewModel.setAspectRatio(nextRatio)
-                }) {
-                    Icon(
-                        imageVector = Icons.Default.AspectRatio,
-                        contentDescription = "Aspect Ratio",
-                        tint = Color.White
-                    )
-                }
                 
                 // More Options Menu
-                IconButton(onClick = { viewModel.toggleMoreOptionsBottomSheet() }) {
+                IconButton(
+                    onClick = { viewModel.toggleMoreOptionsBottomSheet() }
+                ) {
                     Icon(
                         imageVector = Icons.Default.MoreVert,
                         contentDescription = "More Options",
