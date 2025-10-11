@@ -1153,49 +1153,140 @@ private fun MoreOptionsBottomSheet(
     aspectRatio: AspectRatio,
     onDismiss: () -> Unit
 ) {
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxWidth()
             .padding(16.dp)
     ) {
-        Text(
-            text = "Video Settings",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-        
-        // Aspect Ratio Section
-        Text(
-            text = "Aspect Ratio",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Medium,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-        
-        AspectRatio.values().forEach { ratio ->
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { 
-                        viewModel.setAspectRatio(ratio)
-                        onDismiss()
-                    }
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                RadioButton(
-                    selected = aspectRatio == ratio,
-                    onClick = { 
-                        viewModel.setAspectRatio(ratio)
-                        onDismiss()
-                    }
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(ratio.displayName)
-            }
+        // Screen Orientation Lock
+        item {
+            MoreOptionItem(
+                icon = Icons.Default.ScreenRotation,
+                title = "Screen Orientation Lock",
+                subtitle = "Lock screen rotation",
+                onClick = {
+                    // TODO: Implement screen orientation lock
+                    onDismiss()
+                }
+            )
         }
         
-        Spacer(modifier = Modifier.height(16.dp))
+        // Sleep Timer
+        item {
+            MoreOptionItem(
+                icon = Icons.Default.Timer,
+                title = "Sleep Timer",
+                subtitle = "Set auto-stop timer",
+                onClick = {
+                    // TODO: Implement sleep timer
+                    onDismiss()
+                }
+            )
+        }
+        
+        // Playback Speed
+        item {
+            MoreOptionItem(
+                icon = Icons.Default.Speed,
+                title = "Playback Speed",
+                subtitle = "Adjust playback speed",
+                onClick = {
+                    // TODO: Implement playback speed controls
+                    onDismiss()
+                }
+            )
+        }
+        
+        // Repeat Mode
+        item {
+            MoreOptionItem(
+                icon = Icons.Default.Repeat,
+                title = "Repeat Mode",
+                subtitle = "Toggle repeat mode",
+                onClick = {
+                    // TODO: Implement repeat mode
+                    onDismiss()
+                }
+            )
+        }
+        
+        // Shuffle Mode
+        item {
+            MoreOptionItem(
+                icon = Icons.Default.Shuffle,
+                title = "Shuffle Mode",
+                subtitle = "Toggle shuffle mode",
+                onClick = {
+                    // TODO: Implement shuffle mode
+                    onDismiss()
+                }
+            )
+        }
+        
+        // Video Information
+        item {
+            MoreOptionItem(
+                icon = Icons.Default.Info,
+                title = "Video Information",
+                subtitle = "View video details",
+                onClick = {
+                    // TODO: Implement video information dialog
+                    onDismiss()
+                }
+            )
+        }
+        
+        // Add to Playlist
+        item {
+            MoreOptionItem(
+                icon = Icons.Default.PlaylistAdd,
+                title = "Add to Playlist",
+                subtitle = "Add to existing playlist",
+                onClick = {
+                    // TODO: Implement add to playlist
+                    onDismiss()
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun MoreOptionItem(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = title,
+            modifier = Modifier.size(24.dp),
+            tint = MaterialTheme.colorScheme.onSurface
+        )
+        
+        Spacer(modifier = Modifier.width(16.dp))
+        
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
