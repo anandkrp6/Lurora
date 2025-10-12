@@ -381,7 +381,6 @@ private fun VideoPlayerBottomBar(
             WavyProgressIndicator(
                 currentPosition = playbackState.currentPosition,
                 duration = playbackState.duration,
-                bufferedPosition = playbackState.currentPosition,
                 onSeekTo = { viewModel.seekTo(it) },
                 modifier = Modifier.fillMaxWidth()
             )
@@ -541,12 +540,10 @@ private fun VideoPlayerBottomBar(
 private fun WavyProgressIndicator(
     currentPosition: Long,
     duration: Long,
-    bufferedPosition: Long,
     onSeekTo: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val progress = if (duration > 0) currentPosition.toFloat() / duration else 0f
-    val bufferedProgress = if (duration > 0) bufferedPosition.toFloat() / duration else 0f
     
     var isDragging by remember { mutableStateOf(false) }
     var dragProgress by remember { mutableStateOf(progress) }
@@ -586,16 +583,6 @@ private fun WavyProgressIndicator(
         val wavyHeight = 12.dp.toPx()
         val centerY = size.height / 2
         
-        // Draw buffered track
-        drawWavyLine(
-            progress = bufferedProgress,
-            centerY = centerY,
-            trackHeight = trackHeight,
-            wavyHeight = wavyHeight / 2,
-            color = Color.White.copy(alpha = 0.3f),
-            strokeWidth = trackHeight
-        )
-        
         // Draw main progress track with wavy effect
         drawWavyLine(
             progress = animatedProgress,
@@ -615,8 +602,8 @@ private fun WavyProgressIndicator(
             cap = StrokeCap.Round
         )
         
-        // Draw thumb (circular indicator)
-        val thumbRadius = 8.dp.toPx()
+        // Draw thumb (circular indicator) - enlarged when dragging
+        val thumbRadius = if (isDragging) 12.dp.toPx() else 8.dp.toPx()
         val thumbX = animatedProgress * size.width
         
         drawCircle(

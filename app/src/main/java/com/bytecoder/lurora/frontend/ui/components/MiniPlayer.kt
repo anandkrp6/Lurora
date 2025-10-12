@@ -9,6 +9,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -179,11 +180,16 @@ private fun EnhancedMiniPlayerContent(
         )
     ) {
         Column {
-            // Progress bar (thin strip at top)
-            MiniPlayerProgressBar(
-                currentPosition = playbackState.currentPosition,
-                duration = playbackState.duration,
-                isPlaying = playbackState.isPlaying
+            // Progress bar (thin strip at top) - now interactive
+            InteractiveMiniPlayerProgressBar(
+                playbackState = playbackState,
+                onSeekTo = { position ->
+                    when (mediaItem.mediaType) {
+                        MediaType.AUDIO -> musicPlayerViewModel?.seekTo(position)
+                        MediaType.VIDEO -> videoPlayerViewModel?.seekTo(position)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
             )
             
             // Main content row
@@ -218,14 +224,30 @@ private fun EnhancedMiniPlayerContent(
                         overflow = TextOverflow.Ellipsis,
                         fontSize = 14.sp
                     )
-                    mediaItem.artist?.let { artist ->
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Artist name
+                        mediaItem.artist?.let { artist ->
+                            Text(
+                                text = artist,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                fontSize = 12.sp,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        
+                        // Time display
                         Text(
-                            text = artist,
+                            text = "${formatTime(playbackState.currentPosition)} / ${formatTime(playbackState.duration)}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            fontSize = 12.sp
+                            fontSize = 10.sp
                         )
                     }
                 }
@@ -617,29 +639,72 @@ private fun MiniEqualizerDisplay(
         }
     }
 }
+/**
+ * Interactive progress bar component for mini player with seeking capability
+ */
 @Composable
-private fun MiniPlayerProgressBar(
-    currentPosition: Long,
-    duration: Long,
-    isPlaying: Boolean
+private fun InteractiveMiniPlayerProgressBar(
+    playbackState: PlaybackState,
+    onSeekTo: (Long) -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val progress = if (duration > 0) {
-        (currentPosition.toFloat() / duration).coerceIn(0f, 1f)
+    val progress = if (playbackState.duration > 0) {
+        (playbackState.currentPosition.toFloat() / playbackState.duration.toFloat()).coerceIn(0f, 1f)
     } else 0f
     
-    LinearProgressIndicator(
-        progress = { progress },
-        modifier = Modifier
+    var isDragging by remember { mutableStateOf(false) }
+    var dragProgress by remember { mutableStateOf(progress) }
+    
+    Box(
+        modifier = modifier
             .fillMaxWidth()
-            .height(2.dp),
-        color = if (isPlaying) {
-            MaterialTheme.colorScheme.primary
-        } else {
-            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
-        },
-        trackColor = MaterialTheme.colorScheme.surfaceVariant,
-        strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
-    )
+            .height(4.dp)
+            .pointerInput(Unit) {
+                detectTapGestures { offset ->
+                    val newProgress = (offset.x / size.width).coerceIn(0f, 1f)
+                    val newPosition = (newProgress * playbackState.duration).toLong()
+                    onSeekTo(newPosition)
+                }
+            }
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { offset ->
+                        isDragging = true
+                        val newProgress = (offset.x / size.width).coerceIn(0f, 1f)
+                        dragProgress = newProgress
+                    },
+                    onDragEnd = {
+                        isDragging = false
+                        val newPosition = (dragProgress * playbackState.duration).toLong()
+                        onSeekTo(newPosition)
+                    }
+                ) { _, dragAmount ->
+                    val newProgress = (dragProgress + dragAmount.x / size.width).coerceIn(0f, 1f)
+                    dragProgress = newProgress
+                }
+            }
+    ) {
+        // Background track
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        )
+        
+        // Progress track
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(if (isDragging) dragProgress else progress)
+                .background(
+                    if (playbackState.isPlaying) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    }
+                )
+        )
+    }
 }
 
 /**

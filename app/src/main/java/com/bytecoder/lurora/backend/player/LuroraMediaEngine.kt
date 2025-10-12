@@ -15,6 +15,11 @@ import com.bytecoder.lurora.backend.models.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -44,6 +49,10 @@ class LuroraMediaEngine @Inject constructor(
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
     
+    // Position tracking
+    private val positionUpdateScope = CoroutineScope(Dispatchers.Main)
+    private var positionUpdateJob: Job? = null
+    
     private val playerListener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             super.onPlaybackStateChanged(playbackState)
@@ -53,6 +62,12 @@ class LuroraMediaEngine @Inject constructor(
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             super.onIsPlayingChanged(isPlaying)
             updatePlaybackState()
+            // Start or stop position tracking based on playing state
+            if (isPlaying) {
+                startPositionTracking()
+            } else {
+                stopPositionTracking()
+            }
         }
         
         override fun onMediaItemTransition(mediaItem: ExoMediaItem?, reason: Int) {
@@ -266,6 +281,7 @@ class LuroraMediaEngine @Inject constructor(
                 isPlaying = player.isPlaying,
                 isLoading = player.playbackState == Player.STATE_BUFFERING,
                 currentPosition = player.currentPosition,
+                bufferedPosition = player.bufferedPosition,
                 duration = if (player.duration != C.TIME_UNSET) player.duration else 0L,
                 playbackSpeed = player.playbackParameters.speed,
                 repeatMode = exoRepeatMode,
@@ -329,9 +345,31 @@ class LuroraMediaEngine @Inject constructor(
     }
     
     /**
+     * Start position tracking for real-time progress updates
+     */
+    private fun startPositionTracking() {
+        stopPositionTracking() // Stop any existing tracking
+        positionUpdateJob = positionUpdateScope.launch {
+            while (_exoPlayer?.isPlaying == true) {
+                updatePlaybackState()
+                delay(100) // Update every 100ms for smooth progress bars
+            }
+        }
+    }
+    
+    /**
+     * Stop position tracking
+     */
+    private fun stopPositionTracking() {
+        positionUpdateJob?.cancel()
+        positionUpdateJob = null
+    }
+    
+    /**
      * Release resources
      */
     fun release() {
+        stopPositionTracking()
         _exoPlayer?.removeListener(playerListener)
         _exoPlayer?.release()
         _exoPlayer = null
