@@ -47,19 +47,6 @@ fun MoreTabScreenRouter(
         MoreTab.PERMISSIONS -> {
             PermissionsScreen(
                 onNavigateBack = onNavigateBack,
-                onOpenSettings = { 
-                    // Navigate to app-specific settings page
-                    try {
-                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                            data = Uri.fromParts("package", context.packageName, null)
-                        }
-                        context.startActivity(intent)
-                    } catch (e: Exception) {
-                        // Fallback to general settings if app-specific settings fail
-                        val intent = Intent(Settings.ACTION_SETTINGS)
-                        context.startActivity(intent)
-                    }
-                },
                 modifier = modifier
             )
         }
