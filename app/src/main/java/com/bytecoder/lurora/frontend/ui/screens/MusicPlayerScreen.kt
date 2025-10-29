@@ -27,7 +27,6 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -38,6 +37,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,9 +47,12 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.bytecoder.lurora.backend.models.*
+import com.bytecoder.lurora.backend.utils.ThumbnailExtractor
 import com.bytecoder.lurora.frontend.ui.components.MediaThumbnailImage
 import com.bytecoder.lurora.frontend.viewmodels.MusicPlayerViewModel
 import com.bytecoder.lurora.frontend.viewmodels.SettingsViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlin.math.sin
 import kotlin.math.PI
 import kotlin.math.abs
@@ -277,14 +280,7 @@ private fun FullScreenMusicPlayer(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(
-                                    Brush.radialGradient(
-                                        colors = listOf(
-                                            MaterialTheme.colorScheme.surface,
-                                            MaterialTheme.colorScheme.surfaceVariant
-                                        )
-                                    )
-                                ),
+                                .background(Color.Black), // Pure black background for all display modes
                             contentAlignment = Alignment.Center
                         ) {
                             when (audioDisplayMode) {
@@ -574,26 +570,10 @@ private fun TrackInfoBar(
                 modifier = Modifier.size(48.dp),
                 shape = RoundedCornerShape(8.dp)
             ) {
-                mediaItem.albumArtUri?.let { uri ->
-                    AsyncImage(
-                        model = uri,
-                        contentDescription = "Album artwork",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } ?: Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.MusicNote,
-                        contentDescription = "No artwork",
-                        modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                TrackInfoBarAlbumArt(
+                    mediaItem = mediaItem,
+                    modifier = Modifier.fillMaxSize()
+                )
             }
             
             // Song details (center, expandable)
@@ -654,6 +634,86 @@ private fun TrackInfoBar(
                     contentDescription = if (isFavorite) "Remove from Favorites" else "Add to Favorites",
                     tint = if (isFavorite) Color.Red else MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(24.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Album art display component for TrackInfoBar with black background and custom fallback
+ */
+@Composable
+private fun TrackInfoBarAlbumArt(
+    mediaItem: MediaItem,
+    modifier: Modifier = Modifier
+) {
+    var thumbnailUri by remember(mediaItem.id) { mutableStateOf(mediaItem.albumArtUri) }
+    var isLoading by remember(mediaItem.id) { mutableStateOf(false) }
+    var showFallback by remember(mediaItem.id) { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    // If no thumbnail URI exists, try to extract one
+    LaunchedEffect(mediaItem.id) {
+        if (thumbnailUri == null && mediaItem.metadata?.get("file_path") != null) {
+            isLoading = true
+            try {
+                val filePath = mediaItem.metadata["file_path"] as String
+                val extractor = ThumbnailExtractor(context)
+                
+                val extractedUri = withContext(Dispatchers.IO) {
+                    when (mediaItem.mediaType) {
+                        MediaType.VIDEO -> extractor.getVideoThumbnail(filePath, mediaItem.id)
+                        MediaType.AUDIO -> extractor.getAlbumArt(filePath, mediaItem.id)
+                    }
+                }
+                
+                if (extractedUri != null) {
+                    thumbnailUri = extractedUri
+                    showFallback = false
+                } else {
+                    showFallback = true
+                }
+            } catch (e: Exception) {
+                // Failed to extract thumbnail, show fallback icon
+                showFallback = true
+            } finally {
+                isLoading = false
+            }
+        } else if (thumbnailUri == null) {
+            // No album art and no file path, show fallback immediately
+            showFallback = true
+        }
+    }
+
+    Box(
+        modifier = modifier.background(Color.Black),
+        contentAlignment = Alignment.Center
+    ) {
+        when {
+            isLoading -> {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 1.5.dp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            showFallback || thumbnailUri == null -> {
+                // Show custom rainbow music note fallback (smaller for track info bar)
+                MultiColorMusicNoteIcon(
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            else -> {
+                AsyncImage(
+                    model = thumbnailUri,
+                    contentDescription = "Album artwork",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    onError = { 
+                        // When image fails to load, show fallback
+                        showFallback = true
+                    }
                 )
             }
         }
@@ -1083,7 +1143,7 @@ private fun AnimatedEqualizerView(
 }
 
 /**
- * Album art display with rotation animation
+ * Album art display with full area coverage
  */
 @Composable
 private fun AlbumArtDisplay(
@@ -1091,26 +1151,164 @@ private fun AlbumArtDisplay(
     isPlaying: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val rotation by animateFloatAsState(
-        targetValue = if (isPlaying) 360f else 0f,
-        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
-            androidx.compose.animation.core.tween(20000, easing = androidx.compose.animation.core.LinearEasing)
-        ), label = "AlbumArtRotation"
-    )
-    
     Box(
         modifier = modifier
-            .clip(CircleShape)
-            .rotate(rotation)
-            .background(MaterialTheme.colorScheme.surfaceVariant),
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.Black), // Pure black background for album art area
         contentAlignment = Alignment.Center
     ) {
-        MediaThumbnailImage(
-            mediaItem = mediaItem,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-            fallbackIconSize = 120.dp
-        )
+        // Custom album art handling with our multi-color fallback
+        var thumbnailUri by remember(mediaItem.id) { mutableStateOf(mediaItem.albumArtUri) }
+        var isLoading by remember(mediaItem.id) { mutableStateOf(false) }
+        val context = androidx.compose.ui.platform.LocalContext.current
+
+        // If no thumbnail URI exists, try to extract one
+        LaunchedEffect(mediaItem.id) {
+            if (thumbnailUri == null && mediaItem.metadata?.get("file_path") != null) {
+                isLoading = true
+                try {
+                    val filePath = mediaItem.metadata["file_path"] as String
+                    val extractor = com.bytecoder.lurora.backend.utils.ThumbnailExtractor(context)
+                    
+                    thumbnailUri = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        extractor.getAlbumArt(filePath, mediaItem.id)
+                    }
+                } catch (e: Exception) {
+                    // Failed to extract thumbnail, will show fallback icon
+                } finally {
+                    isLoading = false
+                }
+            }
+        }
+
+        when {
+            thumbnailUri != null -> {
+                coil.compose.AsyncImage(
+                    model = thumbnailUri,
+                    contentDescription = "Album art",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    onError = {
+                        // If AsyncImage fails to load, reset thumbnailUri to show fallback
+                        thumbnailUri = null
+                    }
+                )
+            }
+            isLoading -> {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(60.dp),
+                    strokeWidth = 3.dp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            else -> {
+                // Show our custom rainbow music note icon as fallback
+                MultiColorMusicNoteIcon(
+                    modifier = Modifier.fillMaxSize() // Fill the entire display area
+                )
+            }
+        }
+        
+        // Optional: Add a subtle overlay for better visual separation
+        if (isPlaying) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Color.Transparent,
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)
+                            )
+                        )
+                    )
+            )
+        }
+    }
+}
+
+/**
+ * Rainbow gradient music note icon for when no album art is available
+ */
+@Composable
+private fun MultiColorMusicNoteIcon(
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        // Draw a large custom music note filled with rainbow gradient
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val centerX = size.width / 2f
+            val centerY = size.height / 2f
+            val noteSize = size.minDimension * 0.85f // Use 85% of available space
+            
+            // Calculate the bounds of the music note icon area
+            val noteLeft = centerX - noteSize * 0.20f
+            val noteTop = centerY - noteSize * 0.25f
+            val noteRight = centerX + noteSize * 0.30f
+            val noteBottom = centerY + noteSize * 0.25f
+            
+            // Create rainbow gradient brush that spans just the note area
+            val rainbowBrush = Brush.linearGradient(
+                colors = listOf(
+                    Color(0xFFFF0000), // Red
+                    Color(0xFFFF7F00), // Orange  
+                    Color(0xFFFFFF00), // Yellow
+                    Color(0xFF00FF00), // Green
+                    Color(0xFF0000FF), // Blue
+                    Color(0xFF4B0082), // Indigo
+                    Color(0xFF9400D3)  // Violet
+                ),
+                start = Offset(centerX, noteTop),
+                end = Offset(centerX, noteBottom) // Vertical gradient from top to bottom
+            )
+            
+            // Draw music note head (oval) - centered
+            drawOval(
+                brush = rainbowBrush,
+                topLeft = Offset(
+                    centerX - noteSize * 0.20f,
+                    centerY + noteSize * 0.05f
+                ),
+                size = androidx.compose.ui.geometry.Size(
+                    noteSize * 0.3f,
+                    noteSize * 0.2f
+                )
+            )
+            
+            // Draw music note stem - centered
+            drawRect(
+                brush = rainbowBrush,
+                topLeft = Offset(
+                    centerX + noteSize * 0.07f,
+                    centerY - noteSize * 0.25f
+                ),
+                size = androidx.compose.ui.geometry.Size(
+                    noteSize * 0.06f,
+                    noteSize * 0.45f
+                )
+            )
+            
+            // Draw music note flag/beam - centered
+            val flagPath = androidx.compose.ui.graphics.Path().apply {
+                moveTo(centerX + noteSize * 0.13f, centerY - noteSize * 0.25f)
+                quadraticBezierTo(
+                    centerX + noteSize * 0.30f, centerY - noteSize * 0.20f,
+                    centerX + noteSize * 0.20f, centerY - noteSize * 0.05f
+                )
+                quadraticBezierTo(
+                    centerX + noteSize * 0.27f, centerY - noteSize * 0.10f,
+                    centerX + noteSize * 0.13f, centerY - noteSize * 0.15f
+                )
+                close()
+            }
+            drawPath(
+                path = flagPath,
+                brush = rainbowBrush
+            )
+        }
     }
 }
 

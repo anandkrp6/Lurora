@@ -1,12 +1,14 @@
 package com.bytecoder.lurora.frontend.ui.components
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -44,6 +46,8 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -59,6 +63,8 @@ import androidx.media3.ui.PlayerView
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import com.bytecoder.lurora.backend.models.MediaItem
 import com.bytecoder.lurora.backend.models.MediaType
 import com.bytecoder.lurora.backend.models.PlaybackState
@@ -81,7 +87,9 @@ import kotlinx.coroutines.delay
  * 
  * Layout: [Mini Screen] [Track Info] [Previous] [Play/Pause] [Next] [Close]
  * Features:
- * - Auto-switching between album art and equalizer (configurable)
+ * - Same display modes as the main player (Album Art, Equalizer, Both)
+ * - Uses the same settings as the main music player for consistency
+ * - Automatic switching between album art and equalizer in "Both" mode
  * - Video preview for video files
  * - Track title and artist display
  * - Previous/Next navigation
@@ -100,11 +108,10 @@ fun MiniPlayer(
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Get settings for display preferences
+    // Get settings for display preferences - use the same setting as the main player
     val settingsViewModel: SettingsViewModel = hiltViewModel()
-    val audioDisplayMode = remember { settingsViewModel.getSetting("mini_player_audio_display") as? String ?: "Both" }
+    val audioDisplayMode = remember { settingsViewModel.getSetting("music_player_display_mode") as? String ?: "Both (Album Art & Equalizer)" }
     val videoDisplayMode = remember { settingsViewModel.getSetting("mini_player_video_display") as? String ?: "Video Playing" }
-    val switchInterval = remember { settingsViewModel.getSetting("mini_player_switch_interval") as? Float ?: 10f }
     
     // Mini player should only be visible when there is a current media item and full player is not visible
     val shouldShowMiniPlayer = currentMediaItem != null && !isFullPlayerVisible
@@ -130,8 +137,7 @@ fun MiniPlayer(
                 onOpenFullPlayer = onOpenFullPlayer,
                 onClose = onClose,
                 audioDisplayMode = audioDisplayMode,
-                videoDisplayMode = videoDisplayMode,
-                switchInterval = switchInterval.toLong()
+                videoDisplayMode = videoDisplayMode
             )
         }
     }
@@ -146,8 +152,7 @@ private fun EnhancedMiniPlayerContent(
     onOpenFullPlayer: () -> Unit,
     onClose: () -> Unit,
     audioDisplayMode: String,
-    videoDisplayMode: String,
-    switchInterval: Long
+    videoDisplayMode: String
 ) {
     val density = LocalDensity.current
     var dragOffsetY by remember { mutableStateOf(0f) }
@@ -206,7 +211,6 @@ private fun EnhancedMiniPlayerContent(
                     musicPlayerViewModel = musicPlayerViewModel,
                     videoPlayerViewModel = videoPlayerViewModel,
                     displayMode = if (mediaItem.mediaType == MediaType.AUDIO) audioDisplayMode else videoDisplayMode,
-                    switchInterval = switchInterval,
                     modifier = Modifier.size(48.dp)
                 )
                 
@@ -312,45 +316,52 @@ private fun MiniScreen(
     musicPlayerViewModel: MusicPlayerViewModel?,
     videoPlayerViewModel: VideoPlayerViewModel?,
     displayMode: String,
-    switchInterval: Long,
     modifier: Modifier = Modifier
 ) {
-    var currentDisplay by remember { mutableStateOf(0) } // 0 = album art, 1 = equalizer, 2 = video
-    
-    // Auto-switching logic for "Both" mode
-    LaunchedEffect(displayMode, switchInterval) {
-        if ((displayMode == "Both" || displayMode == "Both (Album Art & Equalizer)") && mediaItem.mediaType == MediaType.AUDIO) {
-            while (true) {
-                delay(switchInterval * 1000)
-                currentDisplay = if (currentDisplay == 0) 1 else 0
-            }
-        } else if ((displayMode == "Both" || displayMode == "Both (Thumbnail & Equalizer)") && mediaItem.mediaType == MediaType.VIDEO) {
-            while (true) {
-                delay(switchInterval * 1000)
-                currentDisplay = when (currentDisplay) {
-                    0 -> 1 // album art to equalizer
-                    1 -> 2 // equalizer to video
-                    else -> 0 // video to album art
-                }
-            }
-        }
-    }
-    
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(8.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .background(Color.Black)
     ) {
         when (mediaItem.mediaType) {
             MediaType.AUDIO -> {
                 when (displayMode) {
-                    "Album Art" -> AlbumArtDisplay(mediaItem, modifier = Modifier.fillMaxSize())
-                    "Equalizer" -> MiniEqualizerDisplay(playbackState.isPlaying, modifier = Modifier.fillMaxSize())
-                    "Both (Album Art & Equalizer)" -> {
-                        when (currentDisplay) {
-                            0 -> AlbumArtDisplay(mediaItem, modifier = Modifier.fillMaxSize())
-                            else -> MiniEqualizerDisplay(playbackState.isPlaying, modifier = Modifier.fillMaxSize())
+                    "Album Art" -> {
+                        AlbumArtDisplay(mediaItem, modifier = Modifier.fillMaxSize())
+                    }
+                    "Equalizer" -> {
+                        MiniEqualizerDisplay(playbackState.isPlaying, modifier = Modifier.fillMaxSize())
+                    }
+                    "Both", "Both (Album Art & Equalizer)" -> {
+                        // Switching between Album Art and Equalizer - same logic as main player
+                        var showAlbumArt by remember { mutableStateOf(true) }
+                        
+                        // Auto-switch every 5 seconds when playing (same as main player)
+                        LaunchedEffect(playbackState.isPlaying) {
+                            if (playbackState.isPlaying) {
+                                while (playbackState.isPlaying) {
+                                    kotlinx.coroutines.delay(5000) // 5 seconds - same as main player
+                                    showAlbumArt = !showAlbumArt
+                                }
+                            }
                         }
+                        
+                        // Crossfade animation between the two views
+                        Crossfade(
+                            targetState = showAlbumArt,
+                            animationSpec = tween(durationMillis = 800),
+                            label = "Mini Display Switch"
+                        ) { isShowingAlbumArt ->
+                            if (isShowingAlbumArt) {
+                                AlbumArtDisplay(mediaItem, modifier = Modifier.fillMaxSize())
+                            } else {
+                                MiniEqualizerDisplay(playbackState.isPlaying, modifier = Modifier.fillMaxSize())
+                            }
+                        }
+                    }
+                    else -> {
+                        // Default to album art for unknown modes
+                        AlbumArtDisplay(mediaItem, modifier = Modifier.fillMaxSize())
                     }
                 }
             }
@@ -360,11 +371,32 @@ private fun MiniScreen(
                     "Thumbnail" -> AlbumArtDisplay(mediaItem, modifier = Modifier.fillMaxSize())
                     "Equalizer" -> MiniEqualizerDisplay(playbackState.isPlaying, modifier = Modifier.fillMaxSize())
                     "Both (Thumbnail & Equalizer)" -> {
-                        when (currentDisplay) {
-                            0 -> AlbumArtDisplay(mediaItem, modifier = Modifier.fillMaxSize())
-                            1 -> MiniEqualizerDisplay(playbackState.isPlaying, modifier = Modifier.fillMaxSize())
-                            else -> VideoMiniDisplay(mediaItem, playbackState, videoPlayerViewModel, modifier = Modifier.fillMaxSize())
+                        var showThumbnail by remember { mutableStateOf(true) }
+                        
+                        LaunchedEffect(playbackState.isPlaying) {
+                            if (playbackState.isPlaying) {
+                                while (playbackState.isPlaying) {
+                                    kotlinx.coroutines.delay(5000)
+                                    showThumbnail = !showThumbnail
+                                }
+                            }
                         }
+                        
+                        Crossfade(
+                            targetState = showThumbnail,
+                            animationSpec = tween(durationMillis = 800),
+                            label = "Mini Video Display Switch"
+                        ) { isShowingThumbnail ->
+                            if (isShowingThumbnail) {
+                                AlbumArtDisplay(mediaItem, modifier = Modifier.fillMaxSize())
+                            } else {
+                                MiniEqualizerDisplay(playbackState.isPlaying, modifier = Modifier.fillMaxSize())
+                            }
+                        }
+                    }
+                    else -> {
+                        // Default to video playing for unknown modes
+                        VideoMiniDisplay(mediaItem, playbackState, videoPlayerViewModel, modifier = Modifier.fillMaxSize())
                     }
                 }
             }
@@ -373,23 +405,172 @@ private fun MiniScreen(
 }
 
 /**
- * Album art display component
+ * Album art display component with black background and custom fallback
  */
 @Composable
 private fun AlbumArtDisplay(
     mediaItem: MediaItem,
     modifier: Modifier = Modifier
 ) {
+    var thumbnailUri by remember(mediaItem.id) { mutableStateOf(mediaItem.albumArtUri) }
+    var isLoading by remember(mediaItem.id) { mutableStateOf(false) }
+    var showFallback by remember(mediaItem.id) { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // If no thumbnail URI exists, try to extract one
+    LaunchedEffect(mediaItem.id) {
+        if (thumbnailUri == null && mediaItem.metadata?.get("file_path") != null) {
+            isLoading = true
+            try {
+                val filePath = mediaItem.metadata["file_path"] as String
+                val extractor = com.bytecoder.lurora.backend.utils.ThumbnailExtractor(context)
+                
+                val extractedUri = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    when (mediaItem.mediaType) {
+                        MediaType.VIDEO -> extractor.getVideoThumbnail(filePath, mediaItem.id)
+                        MediaType.AUDIO -> extractor.getAlbumArt(filePath, mediaItem.id)
+                    }
+                }
+                
+                if (extractedUri != null) {
+                    thumbnailUri = extractedUri
+                    showFallback = false
+                } else {
+                    showFallback = true
+                }
+            } catch (e: Exception) {
+                // Failed to extract thumbnail, show fallback icon
+                showFallback = true
+            } finally {
+                isLoading = false
+            }
+        } else if (thumbnailUri == null) {
+            // No album art and no file path, show fallback immediately
+            showFallback = true
+        }
+    }
+
     Box(
-        modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
+        modifier = modifier
+            .background(Color.Black)
+            .clip(RoundedCornerShape(8.dp)),
         contentAlignment = Alignment.Center
     ) {
-        MediaThumbnailImage(
-            mediaItem = mediaItem,
-            modifier = Modifier.fillMaxSize(),
-            contentScale = ContentScale.Crop,
-            fallbackIconSize = 24.dp
-        )
+        when {
+            isLoading -> {
+                androidx.compose.material3.CircularProgressIndicator(
+                    modifier = Modifier.size(24.dp),
+                    strokeWidth = 2.dp,
+                    color = androidx.compose.material3.MaterialTheme.colorScheme.primary
+                )
+            }
+            showFallback || thumbnailUri == null -> {
+                // Show custom rainbow music note fallback
+                MultiColorMusicNoteIcon(
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            else -> {
+                coil.compose.AsyncImage(
+                    model = thumbnailUri,
+                    contentDescription = when (mediaItem.mediaType) {
+                        MediaType.VIDEO -> "Video thumbnail"
+                        MediaType.AUDIO -> "Album art"
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    onError = { 
+                        // When image fails to load, show fallback
+                        showFallback = true
+                    }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Rainbow gradient music note icon for when no album art is available
+ */
+@Composable
+private fun MultiColorMusicNoteIcon(
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center
+    ) {
+        // Draw a large custom music note filled with rainbow gradient
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val centerX = size.width / 2f
+            val centerY = size.height / 2f
+            val noteSize = size.minDimension * 0.85f // Use 85% of available space
+            
+            // Calculate the bounds of the music note icon area
+            val noteLeft = centerX - noteSize * 0.20f
+            val noteTop = centerY - noteSize * 0.25f
+            val noteRight = centerX + noteSize * 0.30f
+            val noteBottom = centerY + noteSize * 0.25f
+            
+            // Create rainbow gradient brush that spans just the note area
+            val rainbowBrush = Brush.linearGradient(
+                colors = listOf(
+                    Color(0xFFFF0000), // Red
+                    Color(0xFFFF7F00), // Orange  
+                    Color(0xFFFFFF00), // Yellow
+                    Color(0xFF00FF00), // Green
+                    Color(0xFF0000FF), // Blue
+                    Color(0xFF4B0082), // Indigo
+                    Color(0xFF9400D3)  // Violet
+                ),
+                start = Offset(centerX, noteTop),
+                end = Offset(centerX, noteBottom) // Vertical gradient from top to bottom
+            )
+            
+            // Draw music note head (oval) - centered
+            drawOval(
+                brush = rainbowBrush,
+                topLeft = Offset(
+                    centerX - noteSize * 0.20f,
+                    centerY + noteSize * 0.05f
+                ),
+                size = androidx.compose.ui.geometry.Size(
+                    noteSize * 0.3f,
+                    noteSize * 0.2f
+                )
+            )
+            
+            // Draw music note stem - centered
+            drawRect(
+                brush = rainbowBrush,
+                topLeft = Offset(
+                    centerX + noteSize * 0.07f,
+                    centerY - noteSize * 0.25f
+                ),
+                size = androidx.compose.ui.geometry.Size(
+                    noteSize * 0.06f,
+                    noteSize * 0.45f
+                )
+            )
+            
+            // Draw music note flag/beam - centered
+            val flagPath = androidx.compose.ui.graphics.Path().apply {
+                moveTo(centerX + noteSize * 0.13f, centerY - noteSize * 0.25f)
+                quadraticBezierTo(
+                    centerX + noteSize * 0.30f, centerY - noteSize * 0.20f,
+                    centerX + noteSize * 0.20f, centerY - noteSize * 0.05f
+                )
+                quadraticBezierTo(
+                    centerX + noteSize * 0.27f, centerY - noteSize * 0.10f,
+                    centerX + noteSize * 0.13f, centerY - noteSize * 0.15f
+                )
+                close()
+            }
+            drawPath(
+                path = flagPath,
+                brush = rainbowBrush
+            )
+        }
     }
 }
 
@@ -418,7 +599,6 @@ private fun VideoMiniDisplay(
                     mediaItem = mediaItem,
                     modifier = Modifier.fillMaxSize(),
                     contentScale = ContentScale.Crop,
-                    fallbackIconSize = 48.dp,
                     showLoading = false // Don't show loading in mini player
                 )
                 
